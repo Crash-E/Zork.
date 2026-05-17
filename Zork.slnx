@@ -1,0 +1,7 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="Zork.vcxproj" Id="a1f53a27-6dd7-406d-bfc1-f7ed3b012b07" />
+</Solution>
