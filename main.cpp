@@ -44,7 +44,7 @@ std::string ParseMovement(const std::string& input) {
 int main() {
 
     std::string helpText =
-        "                                === COMMANDS ===\n \n"
+        "                               === COMMANDS ===\n \n"
         "   go / walk / move / head        +[direction]  = move in a direction\n"
         "   look / observe / l                           = look around the room\n"
         "   examine  / inspect / study     +[target]     = examine something closely\n"
@@ -209,7 +209,7 @@ int main() {
     player->currentRoom->Describe();
 
     while (player->IsAlive()) {
-        std::cout << "\n> ";
+        std::cout << "\n \n > ";
         std::getline(std::cin, input);
         turnPassed = false;
 
@@ -226,7 +226,15 @@ int main() {
             player->currentRoom->Describe();
         }
         else if (input == "inventory" || input == "inv" || input == "i" || input == "items") {
-            
+            if (player->inventory.empty()) {
+                std::cout << "You are carrying nothing.\n";
+            }
+            else {
+                std::cout << "          === Inventory ===\n \n";
+                for (Item* item : player->inventory) {
+                    std::cout << "  = " << item->name << ": " << item->description << "\n";
+                }
+            }
         }
         else if (input == "status" || input == "stats" || input == "hp") {
             
@@ -248,12 +256,38 @@ int main() {
             }
             // Take
             else if (input.substr(0, 4) == "take" || input.substr(0, 4) == "grab" || input.substr(0, 3) == "get") {
-                
+                std::string itemName = input.substr(input.find(' ') + 1);
+                Entity* found = player->currentRoom->FindByName(itemName);
+                if (found && found->type == EntityType::ITEM) {
+                    Item* item = static_cast<Item*>(found);
+                    player->currentRoom->RemoveEntity(item);
+                    player->inventory.push_back(item);
+                    player->TotalValue += item->Value;
+                    std::cout << "You pick up " << item->name << ".\n";
+                }
+                else {
+                    std::cout << "You don't see that here.\n";
+                }
                 turnPassed = true;
             }
             // Drop
             else if (input.substr(0, 4) == "drop" || input.substr(0, 5) == "leave") {
-                
+                std::string itemName = input.substr(input.find(' ') + 1);
+                Item* found = nullptr;
+                for (Item* item : player->inventory) {
+                    std::string lower = item->name;
+                    std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
+                    if (lower == itemName) { found = item; break; }
+                }
+                if (found) {
+                    player->inventory.remove(found);
+                    player->TotalValue -= found->Value;
+                    player->currentRoom->AddEntity(found);
+                    std::cout << "You drop " << found->name << ".\n";
+                }
+                else {
+                    std::cout << "You don't have that.\n";
+                }
                 turnPassed = true;
             }
             // Examine

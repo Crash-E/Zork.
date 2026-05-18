@@ -1,6 +1,6 @@
 #pragma once
 #include "Entity.h"
-
+#include "Item.h"
 class Room;
 
 class Player : public Entity {
@@ -10,6 +10,8 @@ public:
     Room* currentRoom;
     bool  hasObjective;
     int   turnsPlayed;
+    std::list<Item*> inventory;
+    int TotalValue;
 
     Player(const std::string& n, Room* startRoom)
         : Entity(EntityType::PLAYER, n, "The player"),
