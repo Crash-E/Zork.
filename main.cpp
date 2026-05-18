@@ -55,27 +55,24 @@ int main() {
         "   use  / apply / consume         +[item]       = use an item\n"
         "   inventory / inv / i                          = show your items\n"
         "   status / stats / hp                          = show your health\n"
-        "   journal / log / j                            = show notes\n"
         "   help / h / ?                                 = show this list\n"
         "   quit                                         = close the game\n";
 
     World world;
 
+
+    //rooms
+
     Room* entrance = new Room("Cave Entrance",
         "You stand at the mouth of a dark cave. A cold wind blows from within.\n"
         "The light of day barely reaches past the first few feet of stone.\n"
         "yellow plants cover the fields to your right.");
-
-    Item* poisonHerbs = new Item("yellow Herbs",
-        "A cluster of yellow herbs. often used by hunters for traps.", false, false, 1);
+    
 
     Room* AltarEntrance = new Room("Altar Entrance",
         "The tunnel opens into a grand stone gate, its archway carved with scenes of battles long forgotten.\n"
         "Two statues flank the entrance.\n To the right, a robed figure clutching a staff, his face worn smooth by time.\n To the left, a broken warrior, sword in hand, stands vigil, missing its head and left arm.\n"
         "you stumble upon a bundle of ropes on the ground.");
-
-    Item* Rope = new Item("rope",
-        "a cluster of ropes, always useful.", false, true, 2);
 
     Room* ExcaliburRoom = new Room("ExcaliburRoom",
         "The chamber opens into a vast circular room, its ceiling lost in darkness above.\n" 
@@ -126,6 +123,51 @@ int main() {
         "Candles flicker across strange symbols carved into the floor.\n"
         "As one, they turn.");
 
+    //items
+
+    Item* poisonHerbs = new Item("yellow Herbs",
+        "A cluster of yellow herbs. often used by hunters for traps.","Old brittle bones, armor rusted to nothing. his hand seems to be clutching something. you notice a sheath around his waist.", false, false, 1);
+
+    Item* Rope = new Item("rope",
+        "a cluster of ropes, always useful.","", false, true, 2);
+
+    Item* skeleton = new Item("Skeleton",
+        "A skeleton slumps against the wall.","", true, false, 0, true);
+
+    Item* hand = new Item("Hand",
+        "The skeleton's hand seems to be clutching something.", "The fingers are curled tight around something red, a crumpled note wedged beneath the thumb.", true, false, 0, true);
+
+    Item* sheath = new Item("Sheath",
+        "A worn leather sheath at its waist.", "Cracked leather, but the blade inside catches the light perfectly — untouched by time", true, false, 0, true);
+
+    Item* potion = new Item("Potion",
+        "A small vial of red liquid. Looks like it could heal wounds.","",
+        false, false, 2);
+
+    Item* wornNote = new Item("Worn Note",
+        "A crumpled piece of paper. The ink is smudged beyond repair.\n",
+        "most of the note is ineligible, you can make out \"make sure to st*- safe. love Mari*-\"",
+        false, false, 0);
+
+    Item* pristineDagger = new Item("Pristine Dagger",
+        "A dagger in perfect condition. Oddly clean for such a dark place.","",
+        false, false, 3);
+
+    //item rooms
+    entrance->AddEntity(poisonHerbs);
+
+    AltarEntrance->AddEntity(Rope);
+    
+    hand->AddEntity(potion);
+    hand->AddEntity(wornNote);
+    sheath->AddEntity(pristineDagger);
+    skeleton->AddEntity(hand);
+    skeleton->AddEntity(sheath);
+    NarrowTunnel->AddEntity(skeleton);
+
+    
+
+	//exits and layout
     std::vector<Room*> raPool = { ambush, NarrowTunnel, Waterfall };
     std::vector<Room*> rbPool = { Catacombs, RitualRoom };
 
@@ -181,8 +223,13 @@ int main() {
     // ExcaliburRoom exits
     Exit* e17 = new Exit(Direction::UP, Dream, false);
     
-    entrance->AddEntity(poisonHerbs);
-    AltarEntrance->AddEntity(Rope);
+
+    //entities 
+	world.AddEntity(hand);
+    world.AddEntity(sheath);
+    world.AddEntity(potion);
+    world.AddEntity(wornNote);
+    world.AddEntity(pristineDagger);
     world.AddEntity(poisonHerbs);
 	world.AddEntity(AltarEntrance);
 	world.AddEntity(Rope);
@@ -213,18 +260,22 @@ int main() {
         std::getline(std::cin, input);
         turnPassed = false;
 
-        // Convert input to lowercase for easier comparison
-        std::transform(input.begin(), input.end(), input.begin(), ::tolower);
 
+        std::transform(input.begin(), input.end(), input.begin(), ::tolower);
+        
+        //exit
         if (input == "quit") {
             break;
         }
+		//help
         else if (input == "help" || input == "h" || input == "?") {
             std::cout << helpText;
         }
+		//look
         else if (input == "look" || input == "l" || input == "observe" || input == "survey") {
             player->currentRoom->Describe();
         }
+		//inventory
         else if (input == "inventory" || input == "inv" || input == "i" || input == "items") {
             if (player->inventory.empty()) {
                 std::cout << "You are carrying nothing.\n";
@@ -236,12 +287,14 @@ int main() {
                 }
             }
         }
+		//status
         else if (input == "status" || input == "stats" || input == "hp") {
-            
+            std::cout << "          === Status ===\n";
+            std::cout << "HP: " << player->hp << "/" << player->maxHp << "\n";
+            std::cout << "Turns played: " << player->turnsPlayed << "\n";
+            std::cout << "inventory value: " << player->TotalValue << "\n";
         }
-        else if (input == "journal" || input == "log" || input == "j") {
-            
-        }
+		//movement and actions
         else {
             // Movement
             std::string direction = ParseMovement(input);
@@ -260,13 +313,15 @@ int main() {
                 Entity* found = player->currentRoom->FindByName(itemName);
                 if (found && found->type == EntityType::ITEM) {
                     Item* item = static_cast<Item*>(found);
-                    player->currentRoom->RemoveEntity(item);
-                    player->inventory.push_back(item);
-                    player->TotalValue += item->Value;
-                    std::cout << "You pick up " << item->name << ".\n";
-                }
-                else {
-                    std::cout << "You don't see that here.\n";
+                    if (item->isFixed) {
+                        std::cout << item->name << " cannot be taken.\n";
+                    }
+                    else {
+                        player->currentRoom->RemoveEntity(item);
+                        player->inventory.push_back(item);
+                        player->TotalValue += item->Value;
+                        std::cout << "You pick up " << item->name << ".\n";
+                    }
                 }
                 turnPassed = true;
             }
@@ -292,7 +347,77 @@ int main() {
             }
             // Examine
             else if (input.substr(0, 7) == "examine" || input.substr(0, 7) == "inspect" || input.substr(0, 5) == "study" || input.substr(0, 7) == "look at") {
-                
+
+                std::string target = input.substr(input.find(' ') + 1);
+                Entity* found = player->currentRoom->FindByName(target);
+
+                if (!found) {
+                    for (Entity* e : player->currentRoom->contains) {
+                        if (e->type == EntityType::ITEM) {
+                            Item* container = static_cast<Item*>(e);
+                            if (container->isContainer) {
+                                found = container->FindByName(target);
+                                if (found) break;
+                            }
+                        }
+                    }
+                }
+
+                if (!found) {
+                    for (Item* item : player->inventory) {
+                        std::string lower = item->name;
+                        std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
+                        if (lower == target) { found = item; break; }
+                    }
+                }
+
+                if (found && found->type == EntityType::ITEM) {
+                    Item* asItem = static_cast<Item*>(found);
+
+                    if (!asItem->Examine.empty())
+                        std::cout << asItem->Examine << "\n";
+                    else
+                        std::cout << found->description << "\n";
+                    
+                    if (asItem->isContainer && !found->contains.empty()) {
+                        std::cout << "Inside:\n";
+                        for (Entity* e : found->contains) {
+                            if (e->type == EntityType::ITEM) {
+                                Item* child = static_cast<Item*>(e);
+                                if (!child->isContainer)
+                                    std::cout << "  - " << child->name << "\n";
+                                else
+                                    std::cout << "  - " << child->name << " (examine for more)\n";
+                            }
+                        }
+
+                        for (auto it = found->contains.begin(); it != found->contains.end();) {
+                            if ((*it)->type == EntityType::ITEM) {
+                                Item* child = static_cast<Item*>(*it);
+                                if (!child->isContainer && !child->isFixed) {
+                                    std::cout << "Take " << child->name << "? (yes/no)\n> ";
+                                    std::string takeInput;
+                                    std::getline(std::cin, takeInput);
+                                    if (takeInput == "yes" || takeInput == "y") {
+                                        player->inventory.push_back(child);
+                                        player->TotalValue += child->Value;
+                                        std::cout << "You take " << child->name << ".\n";
+                                        it = found->contains.erase(it);
+                                        continue;
+                                    }
+                                }
+                            }
+                            ++it;
+                        }
+
+                        if (found->contains.empty() && found->parent != nullptr) {
+                            found->parent->RemoveEntity(found);
+                        }
+                    }
+                }
+                else {
+                    std::cout << "You don't see that.\n";
+                }
             }
             // Talk
             else if (input.substr(0, 4) == "talk" || input.substr(0, 5) == "speak" || input.substr(0, 5) == "greet") {
