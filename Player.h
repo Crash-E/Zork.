@@ -16,7 +16,7 @@ public:
     Player(const std::string& n, Room* startRoom)
         : Entity(EntityType::PLAYER, n, "The player"),
         hp(100), maxHp(100), currentRoom(startRoom),
-        hasObjective(false), turnsPlayed(0) {
+        hasObjective(false), turnsPlayed(0), TotalValue(0) {
     }
 
     void Update() override;
