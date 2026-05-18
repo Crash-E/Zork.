@@ -22,7 +22,43 @@ Room* CreateCatacombs(World& world);
 Room* CreateLibrary(World& world);
 Room* CreateRitualRoom(World& world);
 
+std::string ParseMovement(const std::string& input) {
+    if (input == "go north" || input == "go n" || input == "walk north" ||
+        input == "move north" || input == "head north" || input == "north" || input == "n")
+        return "north";
+    if (input == "go south" || input == "go s" || input == "walk south" ||
+        input == "move south" || input == "head south" || input == "south" || input == "s")
+        return "south";
+    if (input == "go east" || input == "go e" || input == "walk east" ||
+        input == "move east" || input == "head east" || input == "east" || input == "e")
+        return "east";
+    if (input == "go west" || input == "go w" || input == "walk west" ||
+        input == "move west" || input == "head west" || input == "west" || input == "w")
+        return "west";
+    if (input == "go up" || input == "go u" || input == "walk up" ||
+        input == "move up" || input == "head up" || input == "up" || input == "u")
+        return "up";
+    return "";
+}
+
 int main() {
+
+    std::string helpText =
+        "                                === COMMANDS ===\n \n"
+        "   go / walk / move / head        +[direction]  = move in a direction\n"
+        "   look / observe / l                           = look around the room\n"
+        "   examine  / inspect / study     +[target]     = examine something closely\n"
+        "   take  / grab / pick            +[item]       = pick up an item\n"
+        "   drop  / leave / discard        +[item]       = drop an item\n"
+        "   talk  / speak / greet          +[npc]        = talk to someone\n"
+        "   attack  / fight / hit          +[target]     = attack something\n"
+        "   use  / apply / consume         +[item]       = use an item\n"
+        "   inventory / inv / i                          = show your items\n"
+        "   status / stats / hp                          = show your health\n"
+        "   journal / log / j                            = show notes\n"
+        "   help / h / ?                                 = show this list\n"
+        "   quit                                         = close the game\n";
+
     World world;
 
     Room* entrance = new Room("Cave Entrance",
@@ -164,44 +200,95 @@ int main() {
     player->turnsPlayed = 0;
     world.AddEntity(player);
 
+    std::cout << "\n \n \n === try help for a list of commands === \n \n \n ";
+
     std::string input;
+    bool turnPassed = false;
+
     std::cout << "=== Cave of Excalibur ===\n";
     player->currentRoom->Describe();
 
     while (player->IsAlive()) {
         std::cout << "\n> ";
         std::getline(std::cin, input);
+        turnPassed = false;
 
-        if (input == "quit") break;
+        // Convert input to lowercase for easier comparison
+        std::transform(input.begin(), input.end(), input.begin(), ::tolower);
 
-        if (input == "look") {
+        if (input == "quit") {
+            break;
+        }
+        else if (input == "help" || input == "h" || input == "?") {
+            std::cout << helpText;
+        }
+        else if (input == "look" || input == "l" || input == "observe" || input == "survey") {
             player->currentRoom->Describe();
         }
-        else if (input == "go north" || input == "go n") {
-            Exit* ex = player->currentRoom->GetExit("north");
-            if (ex) { player->currentRoom = ex->destination; player->currentRoom->Describe(); }
-            else std::cout << "No exit that way.\n";
+        else if (input == "inventory" || input == "inv" || input == "i" || input == "items") {
+            
         }
-        else if (input == "go south" || input == "go s") {
-            Exit* ex = player->currentRoom->GetExit("south");
-            if (ex) { player->currentRoom = ex->destination; player->currentRoom->Describe(); }
-            else std::cout << "No exit that way.\n";
+        else if (input == "status" || input == "stats" || input == "hp") {
+            
         }
-        else if (input == "go east" || input == "go e") {
-            Exit* ex = player->currentRoom->GetExit("east");
-            if (ex) { player->currentRoom = ex->destination; player->currentRoom->Describe(); }
-            else std::cout << "No exit that way.\n";
-        }
-        else if (input == "go west" || input == "go w") {
-            Exit* ex = player->currentRoom->GetExit("west");
-            if (ex) { player->currentRoom = ex->destination; player->currentRoom->Describe(); }
-            else std::cout << "No exit that way.\n";
+        else if (input == "journal" || input == "log" || input == "j") {
+            
         }
         else {
-            std::cout << "I don't understand that.\n";
+            // Movement
+            std::string direction = ParseMovement(input);
+            if (!direction.empty()) {
+                Exit* ex = player->currentRoom->GetExit(direction);
+                if (ex) {
+                    player->currentRoom = ex->destination;
+                    player->currentRoom->Describe();
+                    turnPassed = true;
+                }
+                else std::cout << "No exit that way.\n";
+            }
+            // Take
+            else if (input.substr(0, 4) == "take" || input.substr(0, 4) == "grab" || input.substr(0, 3) == "get") {
+                
+                turnPassed = true;
+            }
+            // Drop
+            else if (input.substr(0, 4) == "drop" || input.substr(0, 5) == "leave") {
+                
+                turnPassed = true;
+            }
+            // Examine
+            else if (input.substr(0, 7) == "examine" || input.substr(0, 7) == "inspect" || input.substr(0, 5) == "study" || input.substr(0, 7) == "look at") {
+                
+            }
+            // Talk
+            else if (input.substr(0, 4) == "talk" || input.substr(0, 5) == "speak" || input.substr(0, 5) == "greet") {
+                
+                turnPassed = true;
+            }
+            // Attack
+            else if (input.substr(0, 6) == "attack" || input.substr(0, 5) == "fight" || input.substr(0, 3) == "hit") {
+                
+                turnPassed = true;
+            }
+            // Use
+            else if (input.substr(0, 3) == "use" || input.substr(0, 5) == "apply" || input.substr(0, 4) == "wear") {
+                
+                turnPassed = true;
+            }
+            // Interact
+            else if (input.substr(0, 8) == "interact" || input.substr(0, 5) == "touch" || input.substr(0, 5) == "press" || input.substr(0, 4) == "pull" || input.substr(0, 4) == "push") {
+                
+                turnPassed = true;
+            }
+            else {
+                std::cout << "I don't understand that.\n";
+            }
         }
 
-        world.Update();
+        if (turnPassed) {
+            world.Update();
+            player->turnsPlayed++;
+        }
     }
 
     return 0;
