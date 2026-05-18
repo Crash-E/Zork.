@@ -1,5 +1,9 @@
 #include <iostream>
 #include <string>
+#include <vector>
+#include <algorithm>
+#include <random>
+#include <ctime>
 #include "World.h"
 #include "Room.h"
 #include "Item.h"
@@ -7,38 +11,161 @@
 #include "NPC.h"
 #include "Player.h"
 
+Room* CreateGoblinCamp(World& world);
+Room* CreateNarrowTunnel(World& world);
+Room* CreateDarkPit(World& world);
+Room* CreateBearDen(World& world);
+Room* CreateWildAmbush(World& world);
+Room* CreateCrystalCavern(World& world);
+Room* CreateWaterfall(World& world);
+Room* CreateCatacombs(World& world);
+Room* CreateLibrary(World& world);
+Room* CreateRitualRoom(World& world);
+
 int main() {
     World world;
 
-    // Create rooms
-    Room* entrance = new Room("Cave Entrance", "You stand at the mouth of a dark cave.");
-    Room* tunnel = new Room("Narrow Tunnel", "A tight tunnel stretches ahead.");
+    Room* entrance = new Room("Cave Entrance",
+        "You stand at the mouth of a dark cave. A cold wind blows from within.\n"
+        "The light of day barely reaches past the first few feet of stone.\n"
+        "yellow plants cover the fields to your right.");
 
-    // Create exits connecting the rooms
-    Exit* exitNorth = new Exit(Direction::NORTH, tunnel, false);
-    Exit* exitSouth = new Exit(Direction::SOUTH, entrance, false);
+    Item* poisonHerbs = new Item("yellow Herbs",
+        "A cluster of yellow herbs. often used by hunters for traps.", false, false, 1);
 
-    entrance->AddExit(exitNorth);
-    tunnel->AddExit(exitSouth);
+    Room* AltarEntrance = new Room("Altar Entrance",
+        "The tunnel opens into a grand stone gate, its archway carved with scenes of battles long forgotten.\n"
+        "Two statues flank the entrance.\n To the right, a robed figure clutching a staff, his face worn smooth by time.\n To the left, a broken warrior, sword in hand, stands vigil, missing its head and left arm.\n"
+        "you stumble upon a bundle of ropes on the ground.");
 
-    // Create an item
-    Item* torch = new Item("Torch", "A lit torch. It lights the way.", false, false);
-    entrance->AddEntity(torch);
+    Item* Rope = new Item("rope",
+        "a cluster of ropes, always useful.", false, true, 2);
 
-    // Add everything to world
+    Room* ExcaliburRoom = new Room("ExcaliburRoom",
+        "The chamber opens into a vast circular room, its ceiling lost in darkness above.\n" 
+        "At its center, a sword stands embedded in a weathered stone, surrounded by a shimmering forcefield that distorts the air around it.\n"
+		"Three runes are carved into the base of the stone, each glowing faintly — A, G, and B.\n"
+        "Two knight statues flank the stone. The first, tall and noble, faces the second.\n"
+        "The second turns its gaze toward the sword, as if it has been watching over it for centuries.\n"
+        "Behind them both, a larger statue of a crowned figure stares toward the first knight, its expression unreadable.");
+
+    Room* Dream = new Room("Dream", 
+        "The cave gives way to something impossible. you find yourself in an endless grassfield.\n"
+        "An open sky stretches above you, pale and still, stars unmoving as if painted there.\n"
+        "A calm lake spreads before you, its surface like glass, reflecting nothing.\n"
+        "At its center, a figure stands upon the water, draped in white, watching you in silence.");
+
+	Room* Quarters = new Room("Quarters",
+		"A narrow passage opens into a hidden chamber, warm and dry compared to the cave outside.\n"
+        "Shelves line the walls, crowded with scrolls, tomes, and artifacts wrapped in cloth.\n"
+        "Someone has been living here. A bedroll sits in the corner, a half eaten meal beside it.\n"
+        "At the center of the room, a stone pedestal holds a single golden cup, glowing faintly in the dark.");
+
+	Room* ambush = new Room("Ambush",
+		"The tunnel widens without warning.\n"
+        "A thunderous rumble echoes from ahead, growing louder by the second.\n"
+        "Before you can react, a group of boars burst from the darkness, charging straight at you.");
+
+    Room* NarrowTunnel = new Room("Narrow Tunnel",
+        "The passage narrows until your shoulders nearly brush the walls on both sides.\n"
+        "The air is stale and still.Nothing moves here.\n"
+        "A skeleton slumps against the wall ahead, one hand clutching something to its chest.\n"
+        "A worn leather sheath at its waist holds a dagger that catches the torchlight — oddly clean for this place.");
+
+    Room* Waterfall = new Room("Waterfall",
+        "The cave opens into a wide grotto, the sound of rushing water filling the air.\n"
+        "Cracks in the ceiling feed a steady stream that cascades down the far wall into a shallow pool below.\n"
+        "Herbs grow along the water's edge, fed by the mist.\n"
+        "Slumped against a rock near the pool, a man lies motionless, his chest rising and falling slowly.");
+
+    Room* Catacombs = new Room("Catacombs",
+        "The walls here are not stone but coffins, stacked from floor to ceiling in every direction.\n"
+        "Skulls line the gaps between them, their hollow eyes watching your every step.\n"
+        "The air is thick and cold.\n"
+        "A figure crouches near the far wall, rifling through a coffin, freezing the moment he hears you enter.");
+
+    Room* RitualRoom = new Room("Ritual Room",
+        "The smell hits you before you see it — incense, thick and sweet, masking something underneath.\n"
+        "Three robed figures stand in a circle at the room's center, their backs to you.\n"
+        "Candles flicker across strange symbols carved into the floor.\n"
+        "As one, they turn.");
+
+    std::vector<Room*> raPool = { ambush, NarrowTunnel, Waterfall };
+    std::vector<Room*> rbPool = { Catacombs, RitualRoom };
+
+    std::shuffle(raPool.begin(), raPool.end(), world.rng);
+    std::shuffle(rbPool.begin(), rbPool.end(), world.rng);
+
+    Room* RA1 = raPool[0];
+    Room* RA2 = raPool[1];
+    Room* RA3 = raPool[2];
+    Room* RB1 = rbPool[0];
+    Room* RB2 = rbPool[1];
+
+    // Entrance exits
+    Exit* e1 = new Exit(Direction::NORTH, RA1, false);
+    Exit* e2 = new Exit(Direction::SOUTH, entrance, false);
+    entrance->AddExit(e1);
+    RA1->AddExit(e2);
+
+    // RA1 exits
+    Exit* e3 = new Exit(Direction::WEST, RA2, false);
+    Exit* e4 = new Exit(Direction::EAST, RA1, false);
+    RA1->AddExit(e3);
+    RA2->AddExit(e4);
+
+    // RA2 exits
+    Exit* e5 = new Exit(Direction::NORTH, RA3, false);
+    Exit* e6 = new Exit(Direction::SOUTH, RA2, false);
+    Exit* e7 = new Exit(Direction::WEST, AltarEntrance, false);
+    Exit* e8 = new Exit(Direction::EAST, RA2, false);
+    RA2->AddExit(e5);
+    RA3->AddExit(e6);
+    RA2->AddExit(e7);
+    AltarEntrance->AddExit(e8);
+
+    // AltarEntrance exits
+    Exit* e9 = new Exit(Direction::WEST, RB1, false);
+    Exit* e10 = new Exit(Direction::EAST, AltarEntrance, false);
+    AltarEntrance->AddExit(e9);
+    RB1->AddExit(e10);
+
+    // RB1 exits
+    Exit* e11 = new Exit(Direction::NORTH, RB2, false);
+    Exit* e12 = new Exit(Direction::SOUTH, RB1, false);
+    RB1->AddExit(e11);
+    RB2->AddExit(e12);
+
+    // RB2 exits
+    Exit* e13 = new Exit(Direction::NORTH, ExcaliburRoom, false);
+    Exit* e14 = new Exit(Direction::SOUTH, RB2, false);
+    RB2->AddExit(e13);
+    ExcaliburRoom->AddExit(e14);
+
+    // ExcaliburRoom exits
+    Exit* e17 = new Exit(Direction::UP, Dream, false);
+    
+    entrance->AddEntity(poisonHerbs);
+    AltarEntrance->AddEntity(Rope);
+    world.AddEntity(poisonHerbs);
+	world.AddEntity(AltarEntrance);
+	world.AddEntity(Rope);
     world.AddEntity(entrance);
-    world.AddEntity(tunnel);
-    world.AddEntity(exitNorth);
-    world.AddEntity(exitSouth);
-    world.AddEntity(torch);
+    world.AddEntity(ExcaliburRoom);
+    world.AddEntity(Dream);
+    world.AddEntity(Quarters);
+    world.AddEntity(ambush);
+    world.AddEntity(NarrowTunnel);
+    world.AddEntity(Waterfall);
+    world.AddEntity(Catacombs);
+    world.AddEntity(RitualRoom);
 
-    // Create player
     Player* player = new Player("Hero", entrance);
+    player->turnsPlayed = 0;
     world.AddEntity(player);
 
-    // Game loop
     std::string input;
-    std::cout << "Welcome to the Cave!\n";
+    std::cout << "=== Cave of Excalibur ===\n";
     player->currentRoom->Describe();
 
     while (player->IsAlive()) {
@@ -52,15 +179,23 @@ int main() {
         }
         else if (input == "go north" || input == "go n") {
             Exit* ex = player->currentRoom->GetExit("north");
-            if (ex) player->currentRoom = ex->destination;
+            if (ex) { player->currentRoom = ex->destination; player->currentRoom->Describe(); }
             else std::cout << "No exit that way.\n";
-            player->currentRoom->Describe();
         }
         else if (input == "go south" || input == "go s") {
             Exit* ex = player->currentRoom->GetExit("south");
-            if (ex) player->currentRoom = ex->destination;
+            if (ex) { player->currentRoom = ex->destination; player->currentRoom->Describe(); }
             else std::cout << "No exit that way.\n";
-            player->currentRoom->Describe();
+        }
+        else if (input == "go east" || input == "go e") {
+            Exit* ex = player->currentRoom->GetExit("east");
+            if (ex) { player->currentRoom = ex->destination; player->currentRoom->Describe(); }
+            else std::cout << "No exit that way.\n";
+        }
+        else if (input == "go west" || input == "go w") {
+            Exit* ex = player->currentRoom->GetExit("west");
+            if (ex) { player->currentRoom = ex->destination; player->currentRoom->Describe(); }
+            else std::cout << "No exit that way.\n";
         }
         else {
             std::cout << "I don't understand that.\n";
