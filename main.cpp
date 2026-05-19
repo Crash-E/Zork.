@@ -133,6 +133,7 @@ bool HandleMove(Player* player, const std::string& input) {
 	if (direction.empty()) return false;
 	Exit* ex = player->currentRoom->GetExit(direction);
 	if (ex) {
+		player->firstVisit = false;
 		player->currentRoom = ex->destination;
 		player->currentRoom->Describe();
 		return true;
@@ -260,7 +261,7 @@ void HandleTalk(Player* player, const std::string& target, World& world) {
 	}
 	NPC* npc = static_cast<NPC*>(found);
 	if (npc->onTalk)
-		npc->onTalk(player, &world);
+		npc->onTalk(player, &world, false);
 	else
 		std::cout << npc->name << " says: " << npc->dialogue << "\n";
 }
@@ -307,12 +308,19 @@ void Combat(Player& player, Creature& enemy, World& world, bool ambush = false) 
 				HandleUse(&player, itemTarget);
 			}
 			else if (action == "act") {
-				std::cout << "Nothing to do here.\n";
+				Entity* found = player.currentRoom->FindByName(enemy.name);
+				if (found && found->type == EntityType::CREATURE) {
+					NPC* npc = static_cast<NPC*>(found);
+					if (npc->onTalk)
+						npc->onTalk(&player, &world, true);
+					else
+						std::cout << "there is nothing you can do\n";
+				}
 			}
 			if (extraTurn) {
 				extraTurn = false;
 			}
-			else {
+			else if(enemy.hp > 0){
 				std::cout << "Enemy attacks \n";
 				if (CoinFlip(player.Evade, "dodging", "getting attacked", "defending", world)) {
 					std::cout << "You blocked the attack!\n";
@@ -329,11 +337,16 @@ void Combat(Player& player, Creature& enemy, World& world, bool ambush = false) 
 
 	if (enemy.IsAlive()) return;
 
-	player.Worthy -= enemy.worthCost;
-	int xpGain = 10;
-	if (!player.sneakMode && !ambush) xpGain = (xpGain * 3) / 2;
-	player.xp += xpGain;
-	std::cout << "\nYou defeated " << enemy.name << "! +" << xpGain << " XP\n";
+	if (!enemy.peacefulResolved) {
+		player.Worthy -= enemy.worthCost;
+		int xpGain = 10;
+		if (!player.sneakMode && !ambush) xpGain = (xpGain * 3) / 2;
+		player.xp += xpGain;
+		std::cout << "\nYou defeated " << enemy.name << "! +" << xpGain << " XP\n";
+	}
+	else {
+		std::cout << "\n you have been spared \n";
+	}
 	CheckLevelUp(player);
 }
 
@@ -639,7 +652,7 @@ int main() {
 		"he seems to be fading in and out of consciousness.");
 	injuredMan->damage = 0;
 	injuredMan->worthCost = 2;
-	injuredMan->onTalk = [](Player* p, World* w) {
+	injuredMan->onTalk = [](Player* p, World* w, bool InCombat) {
 		std::cout << "he seems to be fading in and out of consciousness.";
 		std::cout << "\n[wake] [give] [steal] [leave]\n> ";
 		std::string choice;
@@ -673,7 +686,7 @@ int main() {
 		}
 		else if (choice == "steal") {
 			std::cout << "You rifle through his belongings while he drifts in and out of consciousness.\n";
-			p->Worthy -= 2;
+			p->Worthy -= 1;
 			// TODO: give steal loot
 		}
 		else if (choice == "leave") {
@@ -683,6 +696,41 @@ int main() {
 
 	Waterfall->AddEntity(injuredMan);
 	world.AddEntity(injuredMan);
+
+	NPC* greenKnight = new NPC("Green Knight",
+		"A towering knight clad in green armor, his axe resting on his shoulder.",
+		80, true, AltarEntrance,
+		"You dare approach the gate? State your purpose or prepare to fight.");
+	greenKnight->damage = 15;
+	greenKnight->worthCost = 3;
+	AltarEntrance->AddEntity(greenKnight);
+	world.AddEntity(greenKnight);
+	greenKnight->onTalk = [greenKnight, AltarEntrance](Player* p, World* w, bool inCombat) {
+		std::cout << "\"this is no time to talk, yield or fight!\"\n";
+		std::cout << "\"[Yield] [Fight]\"\n";
+		std::string choice;
+		std::getline(std::cin, choice);
+		if (choice == "yield" || choice == "y") {
+			greenKnight->actCount++;
+			if (greenKnight->actCount == 1) {
+				std::cout << "\"Interesting. You hesitate. Show me more.\"\n";
+				std::cout << "The knight steps back, but his axe is still raised.\n";
+			}
+			else {
+				std::cout << "You lower your weapon. The knight nods slowly.\n";
+				std::cout << "\"Wisdom. You may pass.\"\n";
+				std::cout << "The knight's ghostly figure begins to fade away.\n";
+				greenKnight->isHostile = false;
+				greenKnight->peacefulResolved = true;
+				greenKnight->hp = 0;
+				AltarEntrance->RemoveEntity(greenKnight);
+			}
+		}
+		else if (choice == "fight" || choice == "f") 
+			std::cout << "You prepare to fight the Green Knight.\n";
+		else 			
+			std::cout << "The Green Knight doesn't understand your choice.\n";
+		};
 
 	// ===== WORLD ENTITIES =====
 	world.AddEntity(hand);
@@ -716,15 +764,6 @@ int main() {
 	std::string input;
 	bool turnPassed = false;
 
-	if (ParseMovement(input) == "south" && player->currentRoom == entrance && player->firstVisit) {
-		std::cout << "\n=== Ending ?/7 - Coward's Way Out ===\n \n";
-		std::cout << "  You turn back at the entrance. The cave yawns behind you, indifferent.\n";
-		std::cout << "  No shame in it. The sword was never going anywhere.\n";
-		std::cout << "  At least you got out with your life.\n";
-		std::cout << "  Plenty of people who went in didn't.\n";
-		return 0;
-	}
-
 	while (player->IsAlive()) {
 		std::cout << "\n\n> ";
 		std::getline(std::cin, input);
@@ -749,7 +788,14 @@ int main() {
 			HandleStatus(player);
 		}
 		else {
-
+			if (ParseMovement(input) == "south" && player->currentRoom == entrance && player->firstVisit) {
+				std::cout << "\n=== Ending ?/7 - Coward's Way Out ===\n \n";
+				std::cout << "  You turn back at the entrance. The cave yawns behind you, indifferent.\n";
+				std::cout << "  No shame in it. The sword was never going anywhere.\n";
+				std::cout << "  At least you got out with your life.\n";
+				std::cout << "  Plenty of people who went in didn't.\n";
+				break;
+			}
 			if (HandleMove(player, input)) {
 				for (Entity* e : player->currentRoom->contains) {
 					if (e->type == EntityType::CREATURE) {
