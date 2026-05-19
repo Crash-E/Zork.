@@ -82,6 +82,26 @@ bool CoinFlip(int coins, std::string win, std::string lose, std::string action, 
 
 }
 
+void CheckLevelUp(Player& player) {
+    if (player.xp >= player.xpToNextLevel) {
+        player.level++;
+        player.xp -= player.xpToNextLevel;
+        player.xpToNextLevel = player.level * 20;
+        std::cout << "\n=== LEVEL UP! You are now level " << player.level << " ===\n";
+        std::cout << "Choose a stat to increase:\n";
+        std::cout << "[fight] [act] [flee] [item] [evade]\n> ";
+        std::string choice;
+        std::getline(std::cin, choice);
+        if (choice == "fight")      player.Fight++;
+        else if (choice == "act")   player.Act++;
+        else if (choice == "flee")  player.Flee++;
+        else if (choice == "item")  player.ItemStat++;
+        else if (choice == "evade") player.Evade++;
+        else std::cout << "Invalid choice, no stat increased.\n";
+        std::cout << "Stat increased!\n";
+    }
+}
+
 // ===== COMMAND FUNCTIONS =====
 
 void HandleLook(Player* player) {
@@ -103,6 +123,7 @@ void HandleInventory(Player* player) {
 void HandleStatus(Player* player) {
     std::cout << "          === Status ===\n";
     std::cout << "HP: " << player->hp << "/" << player->maxHp << "\n";
+    std::cout << "worthiness: " << player->Worthy << "\n";
     std::cout << "Turns played: " << player->turnsPlayed << "\n";
     std::cout << "Inventory value: " << player->TotalValue << "\n";
 }
@@ -299,10 +320,12 @@ void Combat(Player& player, Creature& enemy, World& world) {
 
     if (enemy.IsAlive()) return;
 
-    int xpGain = 10;
+    int xpGain = 20;
+    player.Worthy -= enemy.worthCost;
     if (!player.sneakMode) xpGain *= 2;
     player.xp += xpGain;
     std::cout << "\nYou defeated " << enemy.name << "! +" << xpGain << " XP\n";
+    CheckLevelUp(player);
 }
 
 void HandleAttack(Player* player, const std::string& target, World& world) {
@@ -315,6 +338,7 @@ void HandleAttack(Player* player, const std::string& target, World& world) {
         std::cout << "You don't see that here.\n";
     }
 }
+
 
 // ===== ENDINGS =====
 
@@ -378,7 +402,7 @@ void CheckEndingPathB(Player* player) {
         std::cout << "  Your pack is heavy. Your mind is clear.\n";
         std::cout << "  Some people chase legends. You walk out with something better. Real wealth, and the clarity to enjoy it.\n";
     }
-    else if (w == -1 && !hasGrail) {
+    else if (w <= -1 && !hasGrail) {
         std::cout << "\n=== Ending 2/7 - Corrupted ===\n\n";
         std::cout << "  The dream took you before you could resist it.\n";
         std::cout << "  A dark version of everything you wanted. A throne built on ash. A sword that drips black.\n";
@@ -387,7 +411,7 @@ void CheckEndingPathB(Player* player) {
         std::cout << "  Your infamy spreads regardless. People fear what you became.\n";
         std::cout << "  But you are not there to enjoy it.\n";
     }
-    else if (w == -1 && hasGrail) {
+    else if (w <= -1 && hasGrail) {
         std::cout << "\n=== Ending 1/7 - Devil of the Lake ===\n\n";
         std::cout << "  The Grail shattered the dream before it could take hold.\n";
         std::cout << "  The lady stood at the center of the lake, unsmiling, watching you with ancient eyes.\n";
@@ -492,6 +516,7 @@ int main() {
 
     Creature* testBoar = new Creature("Boar", "A wild boar, tusks gleaming.", 30, true, ambush);
     testBoar->damage = 5;
+    testBoar->worthCost = 1;
     ambush->AddEntity(testBoar);
     world.AddEntity(testBoar);
 

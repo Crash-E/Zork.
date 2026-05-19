@@ -5,6 +5,7 @@ class Room;
 
 class Creature : public Entity {
 public:
+    int   worthCost;
     int   damage;
     bool  isPacified;
     int   hp;
