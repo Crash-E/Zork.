@@ -5,19 +5,29 @@ class Room;
 
 class Player : public Entity {
 public:
+    int   Fight;
+    int   Act;
+    int   Evade;
+    int   Flee;
+    int   ItemStat;
+    bool  sneakMode;
+    int   xp;
+    int   level;
     int   Worthy;
     int   hp;
     int   maxHp;
     Room* currentRoom;
     bool  hasObjective;
+	bool  hasGrail;
+	bool  firstVisit;
     int   turnsPlayed;
     std::list<Item*> inventory;
-    int TotalValue;
+    int   TotalValue;
 
     Player(const std::string& n, Room* startRoom)
         : Entity(EntityType::PLAYER, n, "The player"),
         hp(100), maxHp(100), currentRoom(startRoom),
-        hasObjective(false), turnsPlayed(0), TotalValue(0), Worthy(10) {
+        hasObjective(false), hasGrail(false), firstVisit(true), turnsPlayed(0), TotalValue(0), Worthy(10), Fight(1), Act(1), Evade(1), Flee(1), ItemStat(1), sneakMode(true), xp(0), level(1) {
     }
 
     void Update() override;
