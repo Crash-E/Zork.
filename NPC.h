@@ -8,6 +8,7 @@ class World;
 
 class NPC : public Creature {
 public:
+    int state = 0;
     std::string dialogue;
     std::vector<Room*> patrolRooms;
     int patrolIndex;

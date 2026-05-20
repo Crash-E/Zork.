@@ -8,6 +8,7 @@ class World;
 
 class Creature : public Entity {
 public:
+	bool  combatEnded = false;
 	std::function<void(Player*, World*)> onAct;
 	int   actCount = 0;
 	bool  peacefulResolved = false;

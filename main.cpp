@@ -183,6 +183,7 @@ void HandleTake(Player* player, const std::string& target) {
 	player->inventory.push_back(item);
 	player->TotalValue += item->Value;
 	std::cout << "You pick up " << item->name << ".\n";
+	if (item->onTake) item->onTake(player);
 }
 
 void HandleDrop(Player* player, const std::string& target) {
@@ -273,9 +274,10 @@ void HandleTalk(Player* player, const std::string& target, World& world) {
 }
 
 void Combat(Player& player, Creature& enemy, World& world, bool ambush = false) {
+	enemy.combatEnded = false;
 	bool extraTurn = player.sneakMode && !ambush;
 
-	while (player.IsAlive() && enemy.IsAlive()) {
+	while (player.IsAlive() && enemy.IsAlive() && !enemy.combatEnded) {
 
 		std::cout << "PLAYER ||| HP: " << player.hp << "/" << player.maxHp << "\n" << enemy.name << " ||| HP: " << enemy.hp << "/" << enemy.maxHp << "\n";
 		std::cout << "\n[fight] [act] [flee] [item] [status]\n> ";
@@ -328,11 +330,11 @@ void Combat(Player& player, Creature& enemy, World& world, bool ambush = false) 
 			}
 			world.Update();
 			if (extraTurn) {
-				
+
 				extraTurn = false;
 			}
 			else if (enemy.hp > 0) {
-				
+
 				std::cout << "Enemy attacks \n";
 				if (CoinFlip(player.Evade, "dodging", "getting attacked", "defending", world)) {
 					std::cout << "You blocked the attack!\n";
@@ -360,6 +362,7 @@ void Combat(Player& player, Creature& enemy, World& world, bool ambush = false) 
 		std::cout << "\nYou have been spared.\n";
 	}
 	CheckLevelUp(player);
+
 }
 
 void HandleAttack(Player* player, const std::string& target, World& world) {
@@ -591,6 +594,12 @@ int main() {
 	world.AddEntity(poisonHerbs);
 
 	// ALTAR ENTRANCE CONTENT
+	Item* leverStatue = new Item("Broken Statue",
+		"A broken statue stands guard.",
+		"The pose matches the Arthur statue in the excalibur chamber.\na lever besides it looks operable.",
+		false, false, 0, "pull the lever", true);
+	world.AddEntity(leverStatue);
+
 	Item* Rope = new Item("Rope",
 		"A cluster of ropes, always useful.", "", false, true, 2);
 
@@ -676,7 +685,7 @@ int main() {
 			NarrowTunnel->AddEntity(sheath);
 			revealed = true;
 		}
-	};
+		};
 
 	world.AddEntity(skeleton);
 	world.AddEntity(hand);
@@ -747,7 +756,7 @@ int main() {
 	Item* arthurStatue = new Item("Arthur Statue",
 		"A grand statue of a crowned figure stands behind the stone.",
 		"King Arthur stands tall, crown upon his brow, his stone gaze fixed on the knight to his right.\n"
-		"There's something deliberate in where he looks. Its figure reminds you of the broken statue at the entrance.",
+		"There's something deliberate in where he looks.",
 		false, false, 0, "", true);
 
 	Item* galahadStatue = new Item("Galahad Statue",
@@ -849,6 +858,15 @@ int main() {
 		}
 		};
 
+	arthurStatue->onExamine = [leverStatue, AltarEntrance](Player* p) {
+		static bool revealed = false;
+		if (!revealed) {
+			AltarEntrance->AddEntity(leverStatue);
+			revealed = true;
+			std::cout << "\nSomething clicks in your mind. The broken statue at the entrance...\n";
+		}
+		};
+
 	ExcaliburRoom->AddEntity(arthurStatue);
 	ExcaliburRoom->AddEntity(galahadStatue);
 	ExcaliburRoom->AddEntity(bedivereStatue);
@@ -865,6 +883,100 @@ int main() {
 	world.AddEntity(runeB);
 	world.AddEntity(excalibur);
 
+	//Quarters Content
+	Item* holyGrail = new Item("Holy Grail",
+		"A golden cup rests on a pedestal, glowing faintly.",
+		"The Holy Grail. Ancient power radiates from its surface. The world feels clearer just looking at it.",
+		false, false, 6);
+
+	NPC* merlin = new NPC("Merlin",
+		"An old man stands before you, eyes burning with anger.",
+		100, true, Quarters,
+		"Thief! Return what is not yours!");
+	merlin->damage = 20;
+	merlin->worthCost = 5;
+
+	world.AddEntity(merlin);
+	world.AddEntity(holyGrail);
+	Quarters->AddEntity(holyGrail);
+
+	Item* crystalBall = new Item("Crystal Ball",
+		"A crystal ball rests on a small table.",
+		"The crystal ball sits quietly. A note on the desk beside it reads:\n\"I found a way to measure worthiness.\"",
+		false, false, 0, "touch the ball", true);
+
+	crystalBall->onInteract = [](Player* p) {
+		std::cout << "The ball glows ";
+		if (p->Worthy == 10) std::cout << "gold";
+		else if (p->Worthy >= 6) std::cout << "yellow";
+		else if (p->Worthy >= 0) std::cout << "grey";
+		else std::cout << "red";
+		std::cout << " at your touch.\n";
+		};
+
+	Item* scroll = new Item("Scroll",
+		"A scroll lies on the floor near the bookshelf.",
+		"The scroll is brittle. The writing trails off mid-sentence:\n\"...some deemed unworthy do not leave the cave.\nThe sword pulls them into a dream they never wake from.\nOnly the Grail can shatter the illusion...\"",
+		false, false, 0);
+	world.AddEntity(scroll);
+
+	Item* bookshelf = new Item("Bookshelf",
+		"A bookshelf crammed with old tomes and scrolls.",
+		"You reach for a book but an invisible barrier stops you.\nLooking down, you notice a scroll on the floor that must have slipped out.",
+		false, false, 0, "", true);
+
+	bookshelf->onExamine = [scroll, Quarters](Player* p) {
+		static bool revealed = false;
+		if (!revealed) {
+			Quarters->AddEntity(scroll);
+			revealed = true;
+		}
+		};
+
+	holyGrail->onTake = [merlin, Quarters, &world](Player* p) {
+		p->hasGrail = true;
+		merlin->dialogue = "Long have I waited for one such as you. Now we may speak in peace.";
+		Quarters->AddEntity(merlin);
+		std::cout << "\nAs you lift the Grail, the air shifts. An old man steps from the shadows.\n";
+		std::cout << "\"Thief! Return what is not yours!\"\n";
+		Combat(*p, *merlin, world, true);
+		if (p->IsAlive())
+			p->currentRoom->Describe();
+		};
+
+	merlin->onAct = [merlin, holyGrail, Quarters](Player* p, World* w) {
+		Item* grail = nullptr;
+		for (Item* item : p->inventory) {
+			if (item->name == "Holy Grail") { grail = item; break; }
+		}
+		if (!grail) {
+			std::cout << "You have nothing to offer him.\n";
+			return;
+		}
+		std::cout << "Offer the Holy Grail back to Merlin? (y/n)\n> ";
+		std::string confirm;
+		std::getline(std::cin, confirm);
+		if (confirm != "y" && confirm != "yes") {
+			std::cout << "You keep the Grail clutched tight.\n";
+			return;
+		}
+		std::cout << "You hold out the Grail.\n";
+		std::cout << "Merlin's expression softens. He takes it gently from your hands.\n";
+		p->inventory.remove(grail);
+		p->TotalValue -= grail->Value;
+		p->hasGrail = false;
+		Quarters->AddEntity(grail);
+		merlin->peacefulResolved = true;
+		merlin->isHostile = false;
+		merlin->combatEnded = true;
+		};
+
+	Quarters->AddEntity(bookshelf);
+	world.AddEntity(bookshelf);
+
+	Quarters->AddEntity(crystalBall);
+	world.AddEntity(crystalBall);
+
 	// RANDOM ROOM SELECTION
 	std::vector<Room*> raPool = { ambush, NarrowTunnel, Waterfall };
 	std::vector<Room*> rbPool = { Catacombs, RitualRoom };
@@ -878,7 +990,20 @@ int main() {
 	Room* RB1 = rbPool[0];
 	Room* RB2 = rbPool[1];
 
+	leverStatue->onInteract = [Quarters, RB2](Player* p) {
+		static bool pulled = false;
+		if (pulled) {
+			std::cout << "The lever is already pulled.\n";
+			return;
+		}
+		pulled = true;
+		RB2->AddExit(new Exit(Direction::EAST, Quarters, false));
+		Quarters->AddExit(new Exit(Direction::WEST, RB2, false));
+		std::cout << "A deep rumble echoes through the cave. Something has opened, somewhere.\n";
+		};
+
 	// EXITS
+
 	// Entrance <-> RA1
 	entrance->AddExit(new Exit(Direction::NORTH, RA1, false));
 	RA1->AddExit(new Exit(Direction::SOUTH, entrance, false));

@@ -10,6 +10,7 @@ public:
     bool isKey;
     int Value;
     bool isFixed;
+    std::function<void(Player*)> onTake;
     std::string Examine;
     std::string interact;
     std::function<void(Player*)> onInteract;
