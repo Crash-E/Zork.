@@ -11,10 +11,7 @@
 #include "NPC.h"
 #include "Player.h"
 
-// ===================================================================
 // HELPER FUNCTIONS
-// ===================================================================
-
 std::string ParseMovement(const std::string& input) {
 	if (input == "go north" || input == "go n" || input == "walk north" ||
 		input == "move north" || input == "head north" || input == "north" || input == "n")
@@ -40,12 +37,10 @@ std::string ParseTarget(const std::string& input) {
 	return input.substr(pos + 1);
 }
 
-// Returns true if 'name' (lowercased) starts with or contains 'target' (lowercased)
 bool MatchesPartial(const std::string& name, const std::string& target) {
 	if (target.empty()) return false;
 	std::string lowerName = name;
 	std::transform(lowerName.begin(), lowerName.end(), lowerName.begin(), ::tolower);
-	// Direct prefix match
 	if (lowerName.find(target) != std::string::npos) return true;
 	return false;
 }
@@ -99,21 +94,23 @@ bool CoinFlip(int coins, std::string win, std::string lose, std::string action, 
 }
 
 void CheckLevelUp(Player& player) {
-	if (player.xp >= player.xpToNextLevel) {
+	while (player.xp >= player.xpToNextLevel) {
 		player.level++;
 		player.xp -= player.xpToNextLevel;
-		player.xpToNextLevel = player.level * 20;
+		player.xpToNextLevel += 20;
 		std::cout << "\n=== LEVEL UP! You are now level " << player.level << " ===\n";
 		std::cout << "Choose a stat to increase:\n";
 		std::cout << "[fight] [act] [flee] [item] [evade]\n> ";
 		std::string choice;
-		std::getline(std::cin, choice);
-		if (choice == "fight")      player.Fight++;
-		else if (choice == "act")   player.Act++;
-		else if (choice == "flee")  player.Flee++;
-		else if (choice == "item")  player.ItemStat++;
-		else if (choice == "evade") player.Evade++;
-		else std::cout << "Invalid choice, no stat increased.\n";
+		while (true) {
+			std::getline(std::cin, choice);
+			if (choice == "fight") { player.Fight++; break; }
+			else if (choice == "act") { player.Act++; break; }
+			else if (choice == "flee") { player.Flee++; break; }
+			else if (choice == "item") { player.ItemStat++; break; }
+			else if (choice == "evade") { player.Evade++; break; }
+			else std::cout << "Invalid choice. Try again.\n> ";
+		}
 		std::cout << "Stat increased!\n";
 	}
 }
@@ -149,6 +146,7 @@ bool HandleMove(Player* player, const std::string& input) {
 	Exit* ex = player->currentRoom->GetExit(direction);
 	if (ex) {
 		player->firstVisit = false;
+		player->previousRoom = player->currentRoom;
 		player->currentRoom = ex->destination;
 		player->currentRoom->Describe();
 		return true;
@@ -314,8 +312,13 @@ void Combat(Player& player, Creature& enemy, World& world, bool ambush = false) 
 				}
 			}
 			else if (action == "flee") {
-				if (CoinFlip(player.Flee, "escaping", "blocked", "escaping", world)) {
-					std::cout << "You flee!\n";
+				if (CoinFlip(player.Flee, "escaping", "Stumbling", "escaping", world)) {
+					std::cout << "You flee";
+					if (player.previousRoom != nullptr) {
+						player.currentRoom = player.previousRoom;
+						std::cout << " back the way you came";
+					}
+					std::cout << "!\n";
 					return;
 				}
 				else {
@@ -356,7 +359,7 @@ void Combat(Player& player, Creature& enemy, World& world, bool ambush = false) 
 		}
 	}
 
-	if (enemy.IsAlive()) return;
+	if (!player.IsAlive()) return;
 
 	if (!enemy.peacefulResolved) {
 		player.Worthy -= enemy.worthCost;
@@ -391,10 +394,7 @@ void HandleAttack(Player* player, const std::string& target, World& world) {
 	}
 }
 
-// ===================================================================
 // ENDINGS
-// ===================================================================
-
 void CheckEndingPathA(Player* player) {
 	bool isRich = player->TotalValue >= 15;
 	int w = player->Worthy;
@@ -485,10 +485,7 @@ void GameOver(Player* player) {
 	std::cout << "Treasure collected: " << player->TotalValue << "\n";
 }
 
-// ===================================================================
 // MAIN
-// ===================================================================
-
 int main() {
 
 	std::string runeSequence = "";
@@ -518,10 +515,7 @@ int main() {
 
 	World world;
 
-	// ===================================================================
 	// ROOMS
-	// ===================================================================
-
 	Room* entrance = new Room("Cave Entrance",
 		"You stand at the mouth of a dark cave. A cold wind blows from within.\n"
 		"The light of day barely reaches past the first few feet of stone.\n"
@@ -595,10 +589,7 @@ int main() {
 	world.AddEntity(Catacombs);
 	world.AddEntity(RitualRoom);
 
-	// ===================================================================
 	// CAVE ENTRANCE CONTENT
-	// ===================================================================
-
 	Item* poisonHerbs = new Item("Yellow Herbs",
 		"A cluster of yellow herbs. Often used by hunters for traps.",
 		"Herbs used to sedate beasts during hunts. Strong enough to knock a person out for hours.",
@@ -612,10 +603,7 @@ int main() {
 	entrance->AddEntity(poisonHerbs);
 	world.AddEntity(poisonHerbs);
 
-	// ===================================================================
 	// ALTAR ENTRANCE CONTENT
-	// ===================================================================
-
 	Item* Rope = new Item("Rope",
 		"A cluster of ropes, always useful.", "", false, true, 2);
 
@@ -661,10 +649,7 @@ int main() {
 	AltarEntrance->AddEntity(greenKnight);
 	world.AddEntity(greenKnight);
 
-	// ===================================================================
 	// NARROW TUNNEL CONTENT
-	// ===================================================================
-
 	Item* skeleton = new Item("Skeleton",
 		"A skeleton slumps against the wall.",
 		"Old brittle bones, armor rusted to nothing. His hand seems to be clutching something. You notice a sheath around his waist.",
@@ -705,20 +690,14 @@ int main() {
 	world.AddEntity(wornNote);
 	world.AddEntity(pristineDagger);
 
-	// ===================================================================
 	// AMBUSH CONTENT
-	// ===================================================================
-
 	Creature* testBoar = new Creature("Boar", "A wild boar, tusks gleaming.", 30, true, ambush);
 	testBoar->damage = 5;
 	testBoar->worthCost = 1;
 	ambush->AddEntity(testBoar);
 	world.AddEntity(testBoar);
 
-	// ===================================================================
 	// WATERFALL CONTENT
-	// ===================================================================
-
 	NPC* injuredMan = new NPC("Injured Man",
 		"A man slumped against a rock, barely conscious.",
 		30, false, Waterfall,
@@ -769,10 +748,7 @@ int main() {
 	Waterfall->AddEntity(injuredMan);
 	world.AddEntity(injuredMan);
 
-	// ===================================================================
 	// EXCALIBUR CHAMBER CONTENT
-	// ===================================================================
-
 	Item* arthurStatue = new Item("Arthur Statue",
 		"A grand statue of a crowned figure stands behind the stone.",
 		"King Arthur stands tall, crown upon his brow, his stone gaze fixed on the knight to his right.\n"
@@ -993,15 +969,14 @@ int main() {
 			}
 
 			if (HandleMove(player, input)) {
-				// Check for ambush on entering room
 				for (Entity* e : player->currentRoom->contains) {
 					if (e->type == EntityType::CREATURE) {
 						Creature* enemy = static_cast<Creature*>(e);
 						if (enemy->isHostile) {
 							std::cout << "\n" << enemy->name << " attacks!\n";
 							Combat(*player, *enemy, world, true);
-							// Re-describe room after combat
-							player->currentRoom->Describe();
+							if (player->IsAlive())
+								player->currentRoom->Describe();
 							break;
 						}
 					}
@@ -1036,8 +1011,8 @@ int main() {
 			}
 			else if (input.substr(0, 6) == "attack" || input.substr(0, 3) == "hit") {
 				HandleAttack(player, target, world);
-				// Re-describe room after combat
-				player->currentRoom->Describe();
+				if (player->IsAlive())
+					player->currentRoom->Describe();
 				turnPassed = true;
 			}
 			else {
@@ -1047,7 +1022,6 @@ int main() {
 
 		if (turnPassed) {
 			world.Update();
-			player->turnsPlayed++;
 		}
 	}
 

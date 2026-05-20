@@ -3,6 +3,5 @@
 #include <iostream>
 
 void Player::Update() {
-    // Player update runs each turn
     turnsPlayed++;
 }
