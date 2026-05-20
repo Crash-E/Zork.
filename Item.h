@@ -13,6 +13,7 @@ public:
     std::string Examine;
     std::string interact;
     std::function<void(Player*)> onInteract;
+    std::function<void(Player*)> onExamine;
 
     Item(const std::string& n, const std::string& desc, const std::string& ex = "",
         bool container = false, bool key = false, int val = 0, const std::string& inter = "", bool fix = false)

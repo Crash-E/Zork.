@@ -157,21 +157,32 @@ bool HandleMove(Player* player, const std::string& input) {
 
 void HandleTake(Player* player, const std::string& target) {
 	Entity* found = FindInRoomAndContainers(player, target);
-	if (found && found->type == EntityType::ITEM) {
-		Item* item = static_cast<Item*>(found);
-		if (item->isFixed) {
-			std::cout << item->name << " cannot be taken.\n";
-		}
-		else {
-			player->currentRoom->RemoveEntity(item);
-			player->inventory.push_back(item);
-			player->TotalValue += item->Value;
-			std::cout << "You pick up " << item->name << ".\n";
-		}
-	}
-	else {
+	if (!found || found->type != EntityType::ITEM) {
 		std::cout << "You don't see that here.\n";
+		return;
 	}
+
+	Item* item = static_cast<Item*>(found);
+	if (item->isFixed) {
+		std::cout << item->name << " cannot be taken.\n";
+		return;
+	}
+
+	Entity* parent = item->parent;
+	if (parent != nullptr) {
+		parent->RemoveEntity(item);
+		if (parent->type == EntityType::ITEM) {
+			Item* parentItem = static_cast<Item*>(parent);
+			if (parentItem->isContainer && parent->contains.empty() && parent->parent != nullptr) {
+				parent->parent->RemoveEntity(parent);
+				std::cout << parentItem->name << " is empty.\n";
+			}
+		}
+	}
+
+	player->inventory.push_back(item);
+	player->TotalValue += item->Value;
+	std::cout << "You pick up " << item->name << ".\n";
 }
 
 void HandleDrop(Player* player, const std::string& target) {
@@ -192,52 +203,26 @@ void HandleExamine(Player* player, const std::string& target) {
 	Entity* found = FindInRoomAndContainers(player, target);
 	if (!found) found = FindInInventory(player, target);
 
-	if (found && found->type == EntityType::ITEM) {
-		Item* asItem = static_cast<Item*>(found);
-
-		if (!asItem->Examine.empty())
-			std::cout << asItem->Examine << "\n";
-		else
-			std::cout << found->description << "\n";
-
-		if (asItem->isContainer && !found->contains.empty()) {
-			std::cout << "Inside:\n";
-			for (Entity* e : found->contains) {
-				if (e->type == EntityType::ITEM) {
-					Item* child = static_cast<Item*>(e);
-					if (!child->isContainer)
-						std::cout << "  - " << child->name << "\n";
-					else
-						std::cout << "  - " << child->name << " (examine for more)\n";
-				}
-			}
-
-			for (auto it = found->contains.begin(); it != found->contains.end();) {
-				if ((*it)->type == EntityType::ITEM) {
-					Item* child = static_cast<Item*>(*it);
-					if (!child->isContainer && !child->isFixed) {
-						std::cout << "Take " << child->name << "? (yes/no)\n> ";
-						std::string takeInput;
-						std::getline(std::cin, takeInput);
-						if (takeInput == "yes" || takeInput == "y") {
-							player->inventory.push_back(child);
-							player->TotalValue += child->Value;
-							std::cout << "You take " << child->name << ".\n";
-							it = found->contains.erase(it);
-							continue;
-						}
-					}
-				}
-				++it;
-			}
-
-			if (found->contains.empty() && found->parent != nullptr) {
-				found->parent->RemoveEntity(found);
-			}
-		}
-	}
-	else {
+	if (!found || found->type != EntityType::ITEM) {
 		std::cout << "You don't see that.\n";
+		return;
+	}
+
+	Item* asItem = static_cast<Item*>(found);
+
+	if (!asItem->Examine.empty())
+		std::cout << asItem->Examine << "\n";
+	else
+		std::cout << found->description << "\n";
+
+	if (asItem->onExamine)
+		asItem->onExamine(player);
+
+	if (asItem->isContainer && !found->contains.empty()) {
+		std::cout << "Inside:\n";
+		for (Entity* e : found->contains) {
+			std::cout << "  - " << e->name << "\n";
+		}
 	}
 }
 
@@ -269,7 +254,6 @@ void HandleUse(Player* player, const std::string& target) {
 void HandleTalk(Player* player, const std::string& target, World& world) {
 	Entity* found = player->currentRoom->FindByName(target);
 	if (!found) {
-		// try partial match
 		for (Entity* e : player->currentRoom->contains) {
 			if (e->type == EntityType::CREATURE && MatchesPartial(e->name, target)) {
 				found = e;
@@ -283,7 +267,7 @@ void HandleTalk(Player* player, const std::string& target, World& world) {
 	}
 	NPC* npc = static_cast<NPC*>(found);
 	if (npc->onTalk)
-		npc->onTalk(player, &world, false);
+		npc->onTalk(player, &world);
 	else
 		std::cout << npc->name << " says: " << npc->dialogue << "\n";
 }
@@ -336,16 +320,19 @@ void Combat(Player& player, Creature& enemy, World& world, bool ambush = false) 
 				Entity* found = player.currentRoom->FindByName(enemy.name);
 				if (found && found->type == EntityType::CREATURE) {
 					NPC* npc = static_cast<NPC*>(found);
-					if (npc->onTalk)
-						npc->onTalk(&player, &world, true);
+					if (npc->onAct)
+						npc->onAct(&player, &world);
 					else
 						std::cout << "There is nothing you can do.\n";
 				}
 			}
+			world.Update();
 			if (extraTurn) {
+				
 				extraTurn = false;
 			}
 			else if (enemy.hp > 0) {
+				
 				std::cout << "Enemy attacks \n";
 				if (CoinFlip(player.Evade, "dodging", "getting attacked", "defending", world)) {
 					std::cout << "You blocked the attack!\n";
@@ -617,7 +604,7 @@ int main() {
 	greenKnight->damage = 15;
 	greenKnight->worthCost = 3;
 
-	greenKnight->onTalk = [greenKnight, AltarEntrance](Player* p, World* w, bool inCombat) {
+	greenKnight->onAct = [greenKnight, AltarEntrance](Player* p, World* w) {
 		std::cout << "\"This is no time to talk, yield or fight!\"\n";
 		std::cout << "[yield] [fight]\n> ";
 		std::string choice;
@@ -653,9 +640,9 @@ int main() {
 	Item* skeleton = new Item("Skeleton",
 		"A skeleton slumps against the wall.",
 		"Old brittle bones, armor rusted to nothing. His hand seems to be clutching something. You notice a sheath around his waist.",
-		true, false, 0, "", true);
+		false, false, 0, "", true);
 
-	Item* hand = new Item("Hand",
+	Item* hand = new Item("Skeleton's Hand",
 		"The skeleton's hand seems to be clutching something.",
 		"The fingers are curled tight around something red, a crumpled note wedged beneath the thumb.",
 		true, false, 0, "", true);
@@ -679,9 +666,17 @@ int main() {
 	hand->AddEntity(potion);
 	hand->AddEntity(wornNote);
 	sheath->AddEntity(pristineDagger);
-	skeleton->AddEntity(hand);
-	skeleton->AddEntity(sheath);
+
 	NarrowTunnel->AddEntity(skeleton);
+
+	skeleton->onExamine = [hand, sheath, NarrowTunnel](Player* p) {
+		static bool revealed = false;
+		if (!revealed) {
+			NarrowTunnel->AddEntity(hand);
+			NarrowTunnel->AddEntity(sheath);
+			revealed = true;
+		}
+	};
 
 	world.AddEntity(skeleton);
 	world.AddEntity(hand);
@@ -705,7 +700,7 @@ int main() {
 	injuredMan->damage = 0;
 	injuredMan->worthCost = 2;
 
-	injuredMan->onTalk = [](Player* p, World* w, bool inCombat) {
+	injuredMan->onTalk = [](Player* p, World* w) {
 		std::cout << "He seems to be fading in and out of consciousness.\n";
 		std::cout << "[wake] [give] [steal] [leave]\n> ";
 		std::string choice;

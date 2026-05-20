@@ -1,10 +1,14 @@
 #pragma once
 #include "Entity.h"
+#include <functional>
 
 class Room;
+class Player;
+class World;
 
 class Creature : public Entity {
 public:
+	std::function<void(Player*, World*)> onAct;
 	int   actCount = 0;
 	bool  peacefulResolved = false;
 	int   worthCost = 0;

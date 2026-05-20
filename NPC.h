@@ -11,7 +11,7 @@ public:
     std::string dialogue;
     std::vector<Room*> patrolRooms;
     int patrolIndex;
-    std::function<void(Player*, World*, bool)> onTalk;
+    std::function<void(Player*, World*)> onTalk;
 
     NPC(const std::string& n, const std::string& desc,
         int health, bool hostile, Room* loc, const std::string& talk)
