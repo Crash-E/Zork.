@@ -175,6 +175,14 @@ void HandleTake(Player* player, const std::string& target) {
 	Item* item = static_cast<Item*>(found);
 	if (item->isFixed) {
 		std::cout << item->name << " cannot be taken.\n";
+		if (item->onInteract) {
+			std::cout << "Would you like to interact with it instead? (y/n)\n> ";
+			std::string confirm;
+			std::getline(std::cin, confirm);
+			if (confirm == "y" || confirm == "yes") {
+				item->onInteract(player);
+			}
+		}
 		return;
 	}
 
@@ -434,7 +442,7 @@ void CheckEndingPathA(Player* player) {
 		std::cout << "  The chamber was silent. The statues watched.\n";
 		std::cout << "  After all you have done, you return empty handed. The sword has judged you. You failed.\n";
 	}
-	else{
+	else {
 		std::cout << "\n=== Ending ?/7 - Coward's Way Out ===\n\n";
 		std::cout << "  You turn back at the entrance. The cave yawns behind you, indifferent.\n";
 		std::cout << "  No shame in it. The sword was never going anywhere.\n";
@@ -738,6 +746,107 @@ int main() {
 	world.AddEntity(wornNote);
 	world.AddEntity(pristineDagger);
 
+
+	// CATACOMBS CONTENT
+	Item* bejeweledSkull = new Item("Bejeweled Skull",
+		"A skull encrusted with jewels.", "", false, false, 5);
+	Item* ornamentalSword = new Item("Ornamental Sword",
+		"An ornate sword. Looks ceremonial, not practical.", "", false, false, 5);
+	Item* ancientCloak = new Item("Ancient Cloak",
+		"A cloak woven with strange symbols.", "", false, false, 4);
+	Item* burnedGrimoire = new Item("Burned Grimoire",
+		"A burnt book. One line is still legible.", "", false, false, 4);
+	world.AddEntity(bejeweledSkull);
+	world.AddEntity(ornamentalSword);
+	world.AddEntity(ancientCloak);
+	world.AddEntity(burnedGrimoire);
+
+	std::vector<Item*> coffinLoot = { bejeweledSkull, ornamentalSword, ancientCloak, burnedGrimoire };
+	std::shuffle(coffinLoot.begin(), coffinLoot.end(), world.rng);
+
+	Item* coffins = new Item("Coffins",
+		"Four stone coffins are stacked along the walls.",
+		"Four ancient coffins. Some look disturbed already.",
+		false, false, 0, "loot a coffin", true);
+
+	NPC* graveRobber = new NPC("Grave Robber",
+		"A thin man crouches in the shadows, knife in hand. \nhe eyes you suspiciously, better not approach.",
+		50, false, Catacombs,
+		"");
+	graveRobber->damage = 10;
+	graveRobber->worthCost = 2;
+	graveRobber->onTalk = [graveRobber](Player* p, World* w) {
+		if (!graveRobber->isPacified) {
+			std::cout << "The grave robber looks at you. \"should have left me alone!\"\n he takes a combat position.\n";
+			Combat(*p, *graveRobber, *w);
+		}
+		else {
+			 std::cout << "I heard king arthur was buried here after he died. a shame he got betrayed.";
+		}
+		};
+
+	static std::vector<int> coffinState = { 0, 0, 0, 0 };
+
+	coffins->onInteract = [coffins, &coffinLoot, graveRobber, Catacombs](Player* p) {
+		std::cout << "Which coffin do you loot? (1/2/3/4)\n> ";
+		std::string choice;
+		std::getline(std::cin, choice);
+		int idx = -1;
+		if (choice == "1") idx = 0;
+		else if (choice == "2") idx = 1;
+		else if (choice == "3") idx = 2;
+		else if (choice == "4") idx = 3;
+		else { std::cout << "Not a coffin number.\n"; return; }
+
+		if (coffinState[idx] != 0) {
+			std::cout << "That coffin is already empty.\n";
+			return;
+		}
+
+		Item* loot = coffinLoot[idx];
+		p->inventory.push_back(loot);
+		p->TotalValue += loot->Value;
+		coffinState[idx] = 1;
+		std::cout << "You loot the coffin and find: " << loot->name << ".\n";
+
+		if (graveRobber->IsAlive()) {
+			for (int i = 3; i > 0; --i) {
+				if (coffinState[i] == 0) {
+					Item* robberLoot = coffinLoot[i];
+					graveRobber->drops.push_back(robberLoot);
+					coffinState[i] = 2;
+					std::cout << "The grave robber opens another coffin, stuffing its content into his bag.\n";
+					break;
+				}
+			}
+		}
+
+
+		bool allEmpty = true;
+		for (int s : coffinState) if (s == 0) { allEmpty = false; break; }
+		if (allEmpty && graveRobber->IsAlive()) {
+			graveRobber->peacefulResolved = true;
+			graveRobber->description = "A fellow graverobber.";
+			std::cout << "\nthe grave robber relaxes at your unified intentions. \"I guess I'm not the only one after the kings tomb\"\n";
+		}
+		};
+
+	Item* loneSkull = new Item("Lone Skull",
+		"A single skull sits in the middle of the room, alone.",
+		"An ordinary skull, oddly placed in the center of the room.",
+		false, false, 0);
+	loneSkull->onTake = [loneSkull, Catacombs](Player* p) {
+		p->inventory.remove(loneSkull);
+		std::cout << "The skull crumbles to dust the moment you touch it.\n";
+		};
+
+	Catacombs->AddEntity(coffins);
+	Catacombs->AddEntity(graveRobber);
+	Catacombs->AddEntity(loneSkull);
+	world.AddEntity(coffins);
+	world.AddEntity(graveRobber);
+	world.AddEntity(loneSkull);
+
 	// AMBUSH CONTENT
 	Creature* Boar = new Creature("Boar", "A wild boar, tusks gleaming.", 40, true, ambush);
 	Boar->damage = 7;
@@ -894,7 +1003,6 @@ int main() {
 		std::cout << "You reach for Excalibur...\n";
 		p->hasObjective = true;
 		entrance->AddExit(new Exit(Direction::SOUTH, ExcaliburRoom, false));
-		entrance->AddEntity(mordred);
 		entrance->AddEntity(mordred);
 		if (p->Worthy == 10 || p->TotalValue >= rich) {
 			mordred->isHostile = true;
@@ -1160,7 +1268,7 @@ int main() {
 	ExcaliburRoom->AddExit(new Exit(Direction::SOUTH, entrance, false));
 
 	// PLAYER
-	Player* player = new Player("Hero", entrance);
+	Player* player = new Player("Hero", RB1);
 	player->turnsPlayed = 0;
 	world.AddEntity(player);
 
