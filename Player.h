@@ -5,6 +5,7 @@ class Room;
 
 class Player : public Entity {
 public:
+    Item* equipped = nullptr; 
     Room* previousRoom = nullptr;
     int   xpToNextLevel;
     int   Fight;

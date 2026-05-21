@@ -141,9 +141,16 @@ void HandleInventory(Player* player) {
 void HandleStatus(Player* player) {
 	std::cout << "          === Status ===\n";
 	std::cout << "HP: " << player->hp << "/" << player->maxHp << "\n";
-	std::cout << "Worthiness: " << player->Worthy << "\n";
+	std::cout << "Level: " << player->level << " (XP: " << player->xp << "/" << player->xpToNextLevel << ")\n";
+	std::cout << "Fight: " << player->Fight << "\n";
+	std::cout << "Act: " << player->Act << "\n";
+	std::cout << "Evade: " << player->Evade << "\n";
+	std::cout << "Flee: " << player->Flee << "\n";
+	std::cout << "Item: " << player->ItemStat << "\n";
 	std::cout << "Turns played: " << player->turnsPlayed << "\n";
 	std::cout << "Inventory value: " << player->TotalValue << "\n";
+	if (player->equipped != nullptr)
+		std::cout << "Equipped: " << player->equipped->name << "\n";
 }
 
 bool HandleMove(Player* player, const std::string& input) {
@@ -302,11 +309,11 @@ void Combat(Player& player, Creature& enemy, World& world, bool ambush = false) 
 		std::string action;
 		std::getline(std::cin, action);
 
-		if (action == "status") {
+		if (action == "status" || action == "s") {
 			HandleStatus(&player);
 		}
 		else {
-			if (action == "fight") {
+			if (action == "attack" || action == "a") {
 				if (CoinFlip(player.Fight, "hit", "miss", "attacking", world)) {
 					std::cout << "You hit " << enemy.name << "!\n";
 					enemy.TakeDamage(10);
@@ -315,8 +322,8 @@ void Combat(Player& player, Creature& enemy, World& world, bool ambush = false) 
 					std::cout << "You missed!\n";
 				}
 			}
-			else if (action == "flee") {
-				if (CoinFlip(player.Flee, "escaping", "Stumbling", "escaping", world)) {
+			else if (action == "flee" || "f") {
+				if (CoinFlip(player.Flee, "escaping", "Stumbling", "running away", world)) {
 					std::cout << "You flee";
 					if (player.previousRoom != nullptr) {
 						player.currentRoom = player.previousRoom;
@@ -329,21 +336,27 @@ void Combat(Player& player, Creature& enemy, World& world, bool ambush = false) 
 					std::cout << "You couldn't escape!\n";
 				}
 			}
-			else if (action == "item") {
-				HandleInventory(&player);
-				std::cout << "Use which item?\n> ";
-				std::string itemTarget;
-				std::getline(std::cin, itemTarget);
-				HandleUse(&player, itemTarget);
+			else if (action == "item" || "i") {
+				if (CoinFlip(player.ItemStat, "opening inventory", "failed to use item", "using an item", world)) {
+					HandleInventory(&player);
+					std::cout << "Use which item?\n> ";
+					std::string itemTarget;
+					std::getline(std::cin, itemTarget);
+					HandleUse(&player, itemTarget);
+				}
+				else std::cout << "You fumble with your items!\n";
+
 			}
 			else if (action == "act") {
-				Entity* found = player.currentRoom->FindByName(enemy.name);
-				if (found && found->type == EntityType::CREATURE) {
-					NPC* npc = static_cast<NPC*>(found);
-					if (npc->onAct)
-						npc->onAct(&player, &world);
-					else
-						std::cout << "There is nothing you can do.\n";
+				if (CoinFlip(player.Act, "successfully acting", "failing to act", "acting", world)) {
+					Entity* found = player.currentRoom->FindByName(enemy.name);
+					if (found && found->type == EntityType::CREATURE) {
+						NPC* npc = static_cast<NPC*>(found);
+						if (npc->onAct)
+							npc->onAct(&player, &world);
+						else
+							std::cout << "There is nothing you can do.\n";
+					}
 				}
 			}
 			world.Update();
@@ -407,6 +420,29 @@ void HandleAttack(Player* player, const std::string& target, World& world) {
 	else {
 		std::cout << "You don't see that here.\n";
 	}
+}
+
+void EquipItem(Player* p, Item* newItem) {
+	if (p->equipped == newItem) {
+		std::cout << "Already equipped.\n";
+		return;
+	}
+	if (p->equipped != nullptr) {
+		Item* old = p->equipped;
+		p->Fight -= old->buffFight;
+		p->Act -= old->buffAct;
+		p->Evade -= old->buffEvade;
+		p->Flee -= old->buffFlee;
+		p->ItemStat -= old->buffItem;
+		std::cout << "You unequip the " << old->name << ".\n";
+	}
+	p->equipped = newItem;
+	p->Fight += newItem->buffFight;
+	p->Act += newItem->buffAct;
+	p->Evade += newItem->buffEvade;
+	p->Flee += newItem->buffFlee;
+	p->ItemStat += newItem->buffItem;
+	std::cout << "You equip the " << newItem->name << ".\n";
 }
 
 // ENDINGS
@@ -781,7 +817,7 @@ int main() {
 			Combat(*p, *graveRobber, *w);
 		}
 		else {
-			 std::cout << "I heard king arthur was buried here after he died. a shame he got betrayed.";
+			std::cout << "I heard king arthur was buried here after he died. a shame he got betrayed.";
 		}
 		};
 
@@ -1237,6 +1273,14 @@ int main() {
 	Dream->AddEntity(ladyOfLake);
 	world.AddEntity(ladyOfLake);
 
+	//INVENTORY ITEMS
+
+	pristineDagger->buffFight = 2;
+	pristineDagger->interact = "equip the dagger";
+	pristineDagger->onInteract = [pristineDagger](Player* p) {
+		EquipItem(p, pristineDagger);
+	};
+
 	// EXITS
 
 	// Entrance <-> RA1
@@ -1268,7 +1312,7 @@ int main() {
 	ExcaliburRoom->AddExit(new Exit(Direction::SOUTH, entrance, false));
 
 	// PLAYER
-	Player* player = new Player("Hero", RB1);
+	Player* player = new Player("Hero", entrance);
 	player->turnsPlayed = 0;
 	world.AddEntity(player);
 
