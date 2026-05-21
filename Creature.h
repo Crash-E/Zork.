@@ -5,10 +5,12 @@
 class Room;
 class Player;
 class World;
+class Item;
 
 class Creature : public Entity {
 public:
 	bool  combatEnded = false;
+	std::vector<Item*> drops;
 	std::function<void(Player*, World*)> onAct;
 	int   actCount = 0;
 	bool  peacefulResolved = false;

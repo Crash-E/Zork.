@@ -115,6 +115,12 @@ void CheckLevelUp(Player& player) {
 	}
 }
 
+void PressEnter() {
+	std::cout << "\n[press enter to continue]";
+	std::cin.get();
+	std::cout << "\n\n\n";
+}
+
 // COMMAND FUNCTIONS
 void HandleLook(Player* player) {
 	player->currentRoom->Describe();
@@ -156,6 +162,10 @@ bool HandleMove(Player* player, const std::string& input) {
 }
 
 void HandleTake(Player* player, const std::string& target) {
+	if (player->hasObjective && target != "excalibur") {
+		std::cout << "nothing interests you anymore, it's time to leave.\n";
+		return;
+	}
 	Entity* found = FindInRoomAndContainers(player, target);
 	if (!found || found->type != EntityType::ITEM) {
 		std::cout << "You don't see that here.\n";
@@ -182,7 +192,7 @@ void HandleTake(Player* player, const std::string& target) {
 
 	player->inventory.push_back(item);
 	player->TotalValue += item->Value;
-	std::cout << "You pick up " << item->name << ".\n";
+	std::cout << "You grab " << item->name << ".\n";
 	if (item->onTake) item->onTake(player);
 }
 
@@ -345,8 +355,10 @@ void Combat(Player& player, Creature& enemy, World& world, bool ambush = false) 
 					if (!player.IsAlive()) break;
 				}
 			}
+			PressEnter();
 		}
 	}
+	PressEnter();
 
 	if (!player.IsAlive()) return;
 
@@ -357,11 +369,16 @@ void Combat(Player& player, Creature& enemy, World& world, bool ambush = false) 
 		player.xp += xpGain;
 		std::cout << "\nYou defeated " << enemy.name << "! +" << xpGain << " XP\n";
 		player.currentRoom->RemoveEntity(&enemy);
+		for (Item* drop : enemy.drops) {
+			player.currentRoom->AddEntity(drop);
+			std::cout << "The " << enemy.name << " dropped " << drop->name << ".\n";
+		}
 	}
 	else {
 		std::cout << "\nYou have been spared.\n";
 	}
 	CheckLevelUp(player);
+	PressEnter();
 
 }
 
@@ -417,6 +434,17 @@ void CheckEndingPathA(Player* player) {
 		std::cout << "  The chamber was silent. The statues watched.\n";
 		std::cout << "  After all you have done, you return empty handed. The sword has judged you. You failed.\n";
 	}
+	else{
+		std::cout << "\n=== Ending ?/7 - Coward's Way Out ===\n\n";
+		std::cout << "  You turn back at the entrance. The cave yawns behind you, indifferent.\n";
+		std::cout << "  No shame in it. The sword was never going anywhere.\n";
+		std::cout << "  At least you got out with your life.\n";
+		std::cout << "  Plenty of people who went in didn't.\n";
+	}
+	PressEnter();
+	std::cout << "\nTurns survived: " << player->turnsPlayed << "\n";
+	std::cout << "Worthiness: " << player->Worthy << "\n";
+	std::cout << "Treasure collected: " << player->TotalValue << "\n";
 }
 
 void CheckEndingPathB(Player* player) {
@@ -464,12 +492,18 @@ void CheckEndingPathB(Player* player) {
 		std::cout << "  You walk out of the cave a legend. The wrong kind.\n";
 		std::cout << "  Kingdoms will whisper your name like a curse for generations to come.\n";
 	}
+	PressEnter();
+	std::cout << "\nTurns survived: " << player->turnsPlayed << "\n";
+	std::cout << "Worthiness: " << player->Worthy << "\n";
+	std::cout << "Treasure collected: " << player->TotalValue << "\n";
+
 }
 
 void GameOver(Player* player) {
 	std::cout << "\n=== GAME OVER ===\n";
 	std::cout << "The darkness takes you. Your story ends here, forgotten in the depths of the cave.\n";
 	std::cout << "Perhaps in another life, you would have been worthy.\n";
+	PressEnter();
 	std::cout << "\nTurns survived: " << player->turnsPlayed << "\n";
 	std::cout << "Worthiness: " << player->Worthy << "\n";
 	std::cout << "Treasure collected: " << player->TotalValue << "\n";
@@ -480,7 +514,7 @@ int main() {
 
 	std::string runeSequence = "";
 	bool forcefieldDown = false;
-
+	int rich = 15;
 	std::string helpText =
 		"                               === COMMANDS ===\n \n"
 		"   go / walk / move / head        +[direction]  = move in a direction\n"
@@ -590,6 +624,14 @@ int main() {
 		p->turnsPlayed += 15;
 		};
 
+	NPC* mordred = new NPC("Mordred",
+		"A figure in dark armor stands at the cave mouth, blocking your path.",
+		100, true, entrance,
+		"So. You found it. Hand it over and walk free.");
+	mordred->damage = 18;
+	mordred->worthCost = 0;
+	world.AddEntity(mordred);
+
 	entrance->AddEntity(poisonHerbs);
 	world.AddEntity(poisonHerbs);
 
@@ -623,6 +665,7 @@ int main() {
 			if (greenKnight->actCount == 1) {
 				std::cout << "\"Interesting. You hesitate. Show me more.\"\n";
 				std::cout << "The knight steps back, but his axe is still raised.\n";
+				PressEnter();
 			}
 			else {
 				std::cout << "You lower your weapon. The knight nods slowly.\n";
@@ -632,13 +675,14 @@ int main() {
 				greenKnight->peacefulResolved = true;
 				greenKnight->hp = 0;
 				AltarEntrance->RemoveEntity(greenKnight);
+				PressEnter();
 			}
 		}
 		else if (choice == "fight" || choice == "f") {
 			std::cout << "You prepare to fight the Green Knight.\n";
 		}
 		else {
-			std::cout << "The Green Knight doesn't understand your choice.\n";
+			std::cout << "The Green Knight respects your choice.\n";
 		}
 		};
 
@@ -695,11 +739,18 @@ int main() {
 	world.AddEntity(pristineDagger);
 
 	// AMBUSH CONTENT
-	Creature* testBoar = new Creature("Boar", "A wild boar, tusks gleaming.", 30, true, ambush);
-	testBoar->damage = 5;
-	testBoar->worthCost = 1;
-	ambush->AddEntity(testBoar);
-	world.AddEntity(testBoar);
+	Creature* Boar = new Creature("Boar", "A wild boar, tusks gleaming.", 40, true, ambush);
+	Boar->damage = 7;
+	Boar->worthCost = 1;
+	ambush->AddEntity(Boar);
+	world.AddEntity(Boar);
+	Item* boarMeat = new Item("Boar Meat", "Tough but edible meat.", "", false, false, 0);
+	Item* tusks = new Item("Tusks", "Sharp boar tusks.", "", false, false, 1);
+	world.AddEntity(boarMeat);
+	world.AddEntity(tusks);
+
+	Boar->drops.push_back(boarMeat);
+	Boar->drops.push_back(tusks);
 
 	// WATERFALL CONTENT
 	NPC* injuredMan = new NPC("Injured Man",
@@ -789,7 +840,7 @@ int main() {
 	Item* excalibur = new Item("Excalibur",
 		"The legendary sword, embedded in the stone, surrounded by a shimmering forcefield.",
 		"Excalibur. The blade hums with quiet power, untouchable through the shimmering barrier around the stone.",
-		false, false, 0, "touch Excalibur", true);
+		false, false, 0, "touch Excalibur", false);
 
 	runeA->onInteract = [&runeSequence, &forcefieldDown](Player* p) {
 		if (forcefieldDown) { std::cout << "Nothing happens.\n"; return; }
@@ -833,13 +884,30 @@ int main() {
 		}
 		};
 
-	excalibur->onInteract = [&forcefieldDown, Dream](Player* p) {
+	excalibur->onTake = [&forcefieldDown, &rich, Dream, entrance, excalibur, mordred, ExcaliburRoom](Player* p) {
 		if (!forcefieldDown) {
-			std::cout << "The forcefield blocks your hand. The sword remains untouchable.\n";
+			p->inventory.remove(excalibur);
+			ExcaliburRoom->AddEntity(excalibur);
+			std::cout << "But The forcefield blocks your hand. The sword remains untouchable.\n";
 			return;
 		}
 		std::cout << "You reach for Excalibur...\n";
 		p->hasObjective = true;
+		entrance->AddExit(new Exit(Direction::SOUTH, ExcaliburRoom, false));
+		entrance->AddEntity(mordred);
+		entrance->AddEntity(mordred);
+		if (p->Worthy == 10 || p->TotalValue >= rich) {
+			mordred->isHostile = true;
+			mordred->dialogue = "So. You found it. Hand it over and walk free.";
+		}
+		else {
+			mordred->isHostile = false;
+			mordred->dialogue = "Pathetic. Not even worth my blade. Crawl back to whatever hole you came from.";
+		}
+		if (p->Worthy < 10) {
+			p->inventory.remove(excalibur);
+			ExcaliburRoom->AddEntity(excalibur);
+		}
 		if (p->Worthy == 10) {
 			std::cout << "The sword feels solid. Real.\n";
 			std::cout << "It is time to leave.\n";
@@ -851,10 +919,14 @@ int main() {
 		else if (p->Worthy >= 6 && p->Worthy <= 9) {
 			std::cout << "The world dissolves around you...\n";
 			p->currentRoom = Dream;
+			PressEnter();
+			HandleLook(p);
 		}
 		else if (p->Worthy <= 0) {
 			std::cout << "Darkness floods your vision. You are pulled down into a dream.\n";
 			p->currentRoom = Dream;
+			PressEnter();
+			HandleLook(p);
 		}
 		};
 
@@ -894,7 +966,7 @@ int main() {
 		100, true, Quarters,
 		"Thief! Return what is not yours!");
 	merlin->damage = 20;
-	merlin->worthCost = 5;
+	merlin->worthCost = 4;
 
 	world.AddEntity(merlin);
 	world.AddEntity(holyGrail);
@@ -969,6 +1041,7 @@ int main() {
 		merlin->peacefulResolved = true;
 		merlin->isHostile = false;
 		merlin->combatEnded = true;
+		PressEnter();
 		};
 
 	Quarters->AddEntity(bookshelf);
@@ -1002,6 +1075,60 @@ int main() {
 		std::cout << "A deep rumble echoes through the cave. Something has opened, somewhere.\n";
 		};
 
+	//Ending
+	NPC* ladyOfLake = new NPC("Lady of the Lake",
+		"A figure stands upon the water, draped in white, watching you in silence.",
+		150, false, Dream,
+		"Come closer, traveler.");
+	ladyOfLake->damage = 25;
+	ladyOfLake->worthCost = 0;
+
+	ladyOfLake->onTalk = [ladyOfLake, &world](Player* p, World* w) {
+		int worth = p->Worthy;
+		bool hasGrail = p->hasGrail;
+
+		if (worth >= 6 && worth <= 9 && !hasGrail) {
+			std::cout << "\nThe Lady smiles softly. She extends a hand, offering you a gleaming sword.\n";
+			std::cout << "\"You have proven yourself, hero. Take it.\"\n";
+			std::cout << "Your hand closes around the hilt. The world feels warm. Real.\n";
+			std::cout << "...too real.\n";
+			PressEnter();
+		}
+		else if (worth >= 6 && worth <= 9 && hasGrail) {
+			std::cout << "\nThe Lady smiles softly. She extends a hand, offering you a gleaming sword.\n";
+			std::cout << "Then the Grail in your pack pulses with light.\n";
+			std::cout << "The lake ripples. The Lady falters. The dream tears like wet paper.\n";
+			std::cout << "You stand alone in an empty chamber. The sword still in the stone.\n";
+			PressEnter();
+		}
+		else if (worth <= 0 && !hasGrail) {
+			std::cout << "\nThe Lady's smile turns cold. A throne rises from the water.\n";
+			std::cout << "\"Yes... yes, this is what you wanted, isn't it? Sit. Rule. Forget.\"\n";
+			std::cout << "You take the throne. The dream closes around you like a fist.\n";
+			PressEnter();
+		}
+		else if (worth <= 0 && hasGrail) {
+			std::cout << "\nThe Grail flares. The dream shatters.\n";
+			std::cout << "The Lady's face twists. She knows why you are here.\n";
+			std::cout << "\"So be it.\"\n";
+			ladyOfLake->isHostile = true;
+			PressEnter();
+			Combat(*p, *ladyOfLake, world, true);
+			if (p->IsAlive()) {
+				std::cout << "\nYou stand over what remains. Her power flows into you.\n";
+				PressEnter();
+			}
+		}
+		else {
+			std::cout << "The Lady looks at you sadly. \"You should not be here.\"\n";
+			return;
+		}
+		CheckEndingPathB(p);
+		};
+
+	Dream->AddEntity(ladyOfLake);
+	world.AddEntity(ladyOfLake);
+
 	// EXITS
 
 	// Entrance <-> RA1
@@ -1030,7 +1157,7 @@ int main() {
 
 	// RB2 <-> ExcaliburRoom
 	RB2->AddExit(new Exit(Direction::NORTH, ExcaliburRoom, false));
-	ExcaliburRoom->AddExit(new Exit(Direction::SOUTH, RB2, false));
+	ExcaliburRoom->AddExit(new Exit(Direction::SOUTH, entrance, false));
 
 	// PLAYER
 	Player* player = new Player("Hero", entrance);
@@ -1078,16 +1205,10 @@ int main() {
 				std::cout << "You move boldly. Courage mode ON.\n";
 		}
 		else {
-			// Coward's Way Out
-			if (ParseMovement(input) == "south" && player->currentRoom == entrance && player->firstVisit) {
-				std::cout << "\n=== Ending ?/7 - Coward's Way Out ===\n\n";
-				std::cout << "  You turn back at the entrance. The cave yawns behind you, indifferent.\n";
-				std::cout << "  No shame in it. The sword was never going anywhere.\n";
-				std::cout << "  At least you got out with your life.\n";
-				std::cout << "  Plenty of people who went in didn't.\n";
+			if (ParseMovement(input) == "south" && player->currentRoom == entrance && (player->firstVisit || player->hasObjective)) {
+				CheckEndingPathA(player);
 				break;
 			}
-
 			if (HandleMove(player, input)) {
 				for (Entity* e : player->currentRoom->contains) {
 					if (e->type == EntityType::CREATURE) {

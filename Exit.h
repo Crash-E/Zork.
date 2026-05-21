@@ -8,7 +8,7 @@ enum class Direction { NORTH, SOUTH, EAST, WEST, UP, DOWN };
 class Exit : public Entity {
 public:
     Direction   direction;
-    Room* destination;
+    Room*       destination;
     bool        isLocked;
     std::string requiredKey;
 
