@@ -3,6 +3,7 @@
 #include <vector>
 #include <algorithm>
 #include <random>
+#include <limits>
 #include <ctime>
 #include "World.h"
 #include "Room.h"
@@ -10,6 +11,7 @@
 #include "Exit.h"
 #include "NPC.h"
 #include "Player.h"
+
 
 // HELPER FUNCTIONS
 std::string ParseMovement(const std::string& input) {
@@ -117,8 +119,7 @@ void CheckLevelUp(Player& player) {
 
 void PressEnter() {
 	std::cout << "\n[press enter to continue]";
-	std::cin.get();
-	std::cout << "\n\n\n";
+	std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 }
 
 // COMMAND FUNCTIONS
@@ -153,11 +154,18 @@ void HandleStatus(Player* player) {
 		std::cout << "Equipped: " << player->equipped->name << "\n";
 }
 
-bool HandleMove(Player* player, const std::string& input) {
+bool HandleMove(Player* player, const std::string& input, Creature* Boar) {
 	std::string direction = ParseMovement(input);
 	if (direction.empty()) return false;
 	Exit* ex = player->currentRoom->GetExit(direction);
 	if (ex) {
+		if (Boar->IsAlive() && !Boar->peacefulResolved && !Boar->patrolRooms.empty()) {
+			Boar->patrolIndex = (Boar->patrolIndex + 1) % Boar->patrolRooms.size();
+			Room* newLoc = Boar->patrolRooms[Boar->patrolIndex];
+			Boar->location->RemoveEntity(Boar);
+			Boar->location = newLoc;
+			newLoc->AddEntity(Boar);
+		}
 		player->firstVisit = false;
 		player->previousRoom = player->currentRoom;
 		player->currentRoom = ex->destination;
@@ -229,11 +237,14 @@ void HandleExamine(Player* player, const std::string& target) {
 	Entity* found = FindInRoomAndContainers(player, target);
 	if (!found) found = FindInInventory(player, target);
 
-	if (!found || found->type != EntityType::ITEM) {
+	if (!found) {
 		std::cout << "You don't see that.\n";
 		return;
 	}
-
+	if (found->type != EntityType::ITEM) {
+		std::cout << found->description << "\n";
+		return;
+	}
 	Item* asItem = static_cast<Item*>(found);
 
 	if (!asItem->Examine.empty())
@@ -291,21 +302,27 @@ void HandleTalk(Player* player, const std::string& target, World& world) {
 		std::cout << "You don't see anyone to talk to.\n";
 		return;
 	}
-	NPC* npc = static_cast<NPC*>(found);
+	NPC* npc = dynamic_cast<NPC*>(static_cast<Creature*>(found));
+	if (npc == nullptr) {
+		std::cout << found->name << " doesn't respond.\n";
+		return;
+	}
 	if (npc->onTalk)
 		npc->onTalk(player, &world);
 	else
 		std::cout << npc->name << " says: " << npc->dialogue << "\n";
 }
 
-void Combat(Player& player, Creature& enemy, World& world, bool ambush = false) {
+void Combat(Player& player, Creature& enemy, World& world) {
 	enemy.combatEnded = false;
-	bool extraTurn = player.sneakMode && !ambush;
+	enemy.peacefulResolved = false;
+	bool extraTurn = player.sneakMode;
+	if (extraTurn) std::cout << "!!!=====You have the drop on " << enemy.name << "! You get an extra turn on your first round.=====!!!\n\n\n";
 
 	while (player.IsAlive() && enemy.IsAlive() && !enemy.combatEnded) {
-
+		PressEnter();
 		std::cout << "PLAYER ||| HP: " << player.hp << "/" << player.maxHp << "\n" << enemy.name << " ||| HP: " << enemy.hp << "/" << enemy.maxHp << "\n";
-		std::cout << "\n[fight] [act] [flee] [item] [status]\n> ";
+		std::cout << "\n[attack] [act] [item] [flee] [status]\n> ";
 		std::string action;
 		std::getline(std::cin, action);
 
@@ -322,7 +339,7 @@ void Combat(Player& player, Creature& enemy, World& world, bool ambush = false) 
 					std::cout << "You missed!\n";
 				}
 			}
-			else if (action == "flee" || "f") {
+			else if (action == "flee" || action =="f") {
 				if (CoinFlip(player.Flee, "escaping", "Stumbling", "running away", world)) {
 					std::cout << "You flee";
 					if (player.previousRoom != nullptr) {
@@ -336,7 +353,7 @@ void Combat(Player& player, Creature& enemy, World& world, bool ambush = false) 
 					std::cout << "You couldn't escape!\n";
 				}
 			}
-			else if (action == "item" || "i") {
+			else if (action == "item" || action == "i") {
 				if (CoinFlip(player.ItemStat, "opening inventory", "failed to use item", "using an item", world)) {
 					HandleInventory(&player);
 					std::cout << "Use which item?\n> ";
@@ -359,12 +376,16 @@ void Combat(Player& player, Creature& enemy, World& world, bool ambush = false) 
 					}
 				}
 			}
+			else {
+				std::cout << "Invalid action.\n";
+				extraTurn = true;
+			}
 			world.Update();
 			if (extraTurn) {
 
 				extraTurn = false;
 			}
-			else if (enemy.hp > 0) {
+			else if (enemy.hp > 0 && enemy.damage != 0) {
 
 				std::cout << "Enemy attacks \n";
 				if (CoinFlip(player.Evade, "dodging", "getting attacked", "defending", world)) {
@@ -376,17 +397,15 @@ void Combat(Player& player, Creature& enemy, World& world, bool ambush = false) 
 					if (!player.IsAlive()) break;
 				}
 			}
-			PressEnter();
 		}
 	}
-	PressEnter();
 
 	if (!player.IsAlive()) return;
 
 	if (!enemy.peacefulResolved) {
 		player.Worthy -= enemy.worthCost;
 		int xpGain = 10;
-		if (!player.sneakMode && !ambush) xpGain = (xpGain * 3) / 2;
+		if (!player.sneakMode) xpGain = (xpGain * 3) / 2;
 		player.xp += xpGain;
 		std::cout << "\nYou defeated " << enemy.name << "! +" << xpGain << " XP\n";
 		player.currentRoom->RemoveEntity(&enemy);
@@ -758,7 +777,8 @@ int main() {
 		false, false, 0);
 
 	Item* pristineDagger = new Item("Pristine Dagger",
-		"A dagger in perfect condition. Oddly clean for such a dark place.", "", false, false, 3);
+		"A dagger in perfect condition. Oddly clean for such a dark place.", "equip the dagger", false, false, 3);
+	pristineDagger->buffFight = 2;
 
 	hand->AddEntity(potion);
 	hand->AddEntity(wornNote);
@@ -883,12 +903,40 @@ int main() {
 	world.AddEntity(graveRobber);
 	world.AddEntity(loneSkull);
 
-	// AMBUSH CONTENT
-	Creature* Boar = new Creature("Boar", "A wild boar, tusks gleaming.", 40, true, ambush);
+	// Roaming Boar
+	Creature* Boar = new Creature("Boar", "A wild boar, tusks gleaming.", 40, true);
 	Boar->damage = 7;
 	Boar->worthCost = 1;
-	ambush->AddEntity(Boar);
 	world.AddEntity(Boar);
+	Boar->onAct = [Boar](Player* p, World* w) {
+		Item* herbs = nullptr;
+		for (Item* item : p->inventory) {
+			if (item->name == "Yellow Herbs") { herbs = item; break; }
+		}
+		if (!herbs) {
+			std::cout << "The boar snarls. There is nothing you can do. if you only had any hunting experience.\n";
+			return;
+		}
+		std::cout << "Try to sedate the boar with Yellow Herbs? (y/n)\n> ";
+		std::string choice;
+		std::getline(std::cin, choice);
+		if (choice != "y" && choice != "yes") return;
+
+		if (CoinFlip(p->ItemStat, "applying", "fumbling", "sedating", *w)) {
+			std::cout << "The boar staggers, then collapses, snoring softly.\n";
+			Boar->name = "Sleeping Boar";
+			Boar->damage = 0;
+			p->inventory.remove(herbs);
+			p->TotalValue -= herbs->Value;
+			Boar->isHostile = false;
+			Boar->peacefulResolved = true;
+			Boar->combatEnded = true;
+			Boar->patrolRooms.clear();
+		}
+		else {
+			std::cout << "You fail to apply the herbs! The boar snorts angrily.\n";
+		}
+		};
 	Item* boarMeat = new Item("Boar Meat", "Tough but edible meat.", "", false, false, 0);
 	Item* tusks = new Item("Tusks", "Sharp boar tusks.", "", false, false, 1);
 	world.AddEntity(boarMeat);
@@ -947,6 +995,76 @@ int main() {
 
 	Waterfall->AddEntity(injuredMan);
 	world.AddEntity(injuredMan);
+
+	// RITUAL ROOM CONTENT
+	Item* incense = new Item("Incense",
+		"A bundle of fragrant incense.", "", false, false, 3, "burn the incense");
+
+	world.AddEntity(incense);
+
+	Item* ritualisticMask = new Item("Ritualistic Mask",
+		"A carved wooden mask with hollow eyes.", "", false, false, 5);
+	ritualisticMask->buffAct = 1;
+	ritualisticMask->buffItem = 1;
+	ritualisticMask->buffFlee = 1;
+	ritualisticMask->interact = "wear the mask";
+	world.AddEntity(ritualisticMask);
+
+	Item* moonPendant = new Item("Moon Pendant",
+		"A pendant shaped like a crescent moon.",
+		"Cold to the touch. Probably valuable.",
+		false, false, 4);
+	world.AddEntity(moonPendant);
+	RitualRoom->AddEntity(moonPendant);
+
+	Item* ritualisticDrawings = new Item("Ritualistic Drawings",
+		"Strange carvings cover the walls.",
+		"These carvings depict a lady clad in white cursing a sword. Her tears feed the blade.",
+		false, false, 0, "", true);
+	world.AddEntity(ritualisticDrawings);
+	RitualRoom->AddEntity(ritualisticDrawings);
+
+	Creature* cultists = new Creature("Cultists",
+		"Three robed figures, faces hidden by hoods, chant in unison.",
+		70, true, RitualRoom);
+	cultists->damage = 12;
+	cultists->worthCost = 3;
+	cultists->drops.push_back(incense);
+	cultists->drops.push_back(ritualisticMask);
+	RitualRoom->AddEntity(cultists);
+	world.AddEntity(cultists);
+
+	cultists->onAct = [cultists, incense](Player* p, World* w) {
+		Item* dagger = nullptr;
+		for (Item* item : p->inventory) {
+			if (item->name == "Pristine Dagger") { dagger = item; break; }
+		}
+		if (!dagger) {
+			std::cout << "The cultists continue their chant. There is nothing you can do.\n";
+			return;
+		}
+		std::cout << "You raise the Pristine dagger. The cultists pause, watching intently.\n";
+		std::cout << "Offer your blood with the Pristine Dagger (-25 hp)? (y/n)\n> ";
+		std::string choice;
+		std::getline(std::cin, choice);
+		if (choice != "y" && choice != "yes") {
+			std::cout << "You lower the dagger. They resume their chant.\n";
+			return;
+		}
+		std::cout << "You draw blood with the dagger. The cultists nod approvingly.\n";
+		std::cout << "\"It is enough. Leave us to our ritual.\"\n";
+		auto it = std::find(cultists->drops.begin(), cultists->drops.end(), incense);
+		if (it != cultists->drops.end()) {
+			cultists->drops.erase(it);
+			std::cout << "one of the cultists silently hands you a bundle of incense.\n";
+			p->inventory.push_back(incense);
+			p->TotalValue += incense->Value;
+		}
+		p->TakeDamage(25);
+		cultists->isHostile = false;
+		cultists->peacefulResolved = true;
+		cultists->combatEnded = true;
+		};
 
 	// EXCALIBUR CHAMBER CONTENT
 	Item* arthurStatue = new Item("Arthur Statue",
@@ -1155,7 +1273,7 @@ int main() {
 		Quarters->AddEntity(merlin);
 		std::cout << "\nAs you lift the Grail, the air shifts. An old man steps from the shadows.\n";
 		std::cout << "\"Thief! Return what is not yours!\"\n";
-		Combat(*p, *merlin, world, true);
+		Combat(*p, *merlin, world);
 		if (p->IsAlive())
 			p->currentRoom->Describe();
 		};
@@ -1219,6 +1337,10 @@ int main() {
 		std::cout << "A deep rumble echoes through the cave. Something has opened, somewhere.\n";
 		};
 
+	Boar->patrolRooms = { RA1, RA2, RA3 };
+	Boar->location = RA1;
+	RA1->AddEntity(Boar);
+
 	//Ending
 	NPC* ladyOfLake = new NPC("Lady of the Lake",
 		"A figure stands upon the water, draped in white, watching you in silence.",
@@ -1257,7 +1379,8 @@ int main() {
 			std::cout << "\"So be it.\"\n";
 			ladyOfLake->isHostile = true;
 			PressEnter();
-			Combat(*p, *ladyOfLake, world, true);
+			p->sneakMode = false;
+			Combat(*p, *ladyOfLake, world);
 			if (p->IsAlive()) {
 				std::cout << "\nYou stand over what remains. Her power flows into you.\n";
 				PressEnter();
@@ -1275,11 +1398,20 @@ int main() {
 
 	//INVENTORY ITEMS
 
-	pristineDagger->buffFight = 2;
-	pristineDagger->interact = "equip the dagger";
+	incense->onInteract = [incense](Player* p) {
+		std::cout << "You burn the incense. you feel your sins lifting off your shoulders.\n";
+		p->Worthy += 2;
+		p->inventory.remove(incense);
+		std::cout << "(+2 Worthy)\n";
+		};
+
+	ritualisticMask->onInteract = [ritualisticMask](Player* p) {
+		EquipItem(p, ritualisticMask);
+		};
+
 	pristineDagger->onInteract = [pristineDagger](Player* p) {
 		EquipItem(p, pristineDagger);
-	};
+		};
 
 	// EXITS
 
@@ -1361,13 +1493,13 @@ int main() {
 				CheckEndingPathA(player);
 				break;
 			}
-			if (HandleMove(player, input)) {
+			if (HandleMove(player, input,Boar)) {
 				for (Entity* e : player->currentRoom->contains) {
 					if (e->type == EntityType::CREATURE) {
 						Creature* enemy = static_cast<Creature*>(e);
 						if (enemy->isHostile) {
 							std::cout << "\n" << enemy->name << " attacks!\n";
-							Combat(*player, *enemy, world, true);
+							Combat(*player, *enemy, world);
 							if (player->IsAlive())
 								player->currentRoom->Describe();
 							break;
