@@ -123,9 +123,11 @@ give merlin the holy grail to end the fight with him
 
 use rope on the pit
 
+use the crystal ball in merlins room to check your worthiness
+
 inspect everything
 
-endings:
+### endings:
 
 all endings are accessible after touching sword, whether worthy or not
 
