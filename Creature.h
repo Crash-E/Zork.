@@ -18,16 +18,15 @@ public:
 	bool  peacefulResolved = false;
 	int   worthCost = 0;
 	int   damage;
-	bool  isPacified;
 	int   hp;
 	int   maxHp;
 	bool  isHostile;
 	Room* location;
 
 	Creature(const std::string& n, const std::string& desc,
-		int health, bool hostile, Room* loc = nullptr, int dmg = 5, bool pacified = false)
+		int health, bool hostile, Room* loc = nullptr, int dmg = 5)
 		: Entity(EntityType::CREATURE, n, desc),
-		hp(health), maxHp(health), isHostile(hostile), location(loc), damage(dmg), isPacified(pacified), patrolIndex(0) {
+		hp(health), maxHp(health), isHostile(hostile), location(loc), damage(dmg), patrolIndex(0) {
 	}
 
 	void Update() override;
