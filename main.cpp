@@ -30,6 +30,9 @@ std::string ParseMovement(const std::string& input) {
 	if (input == "go up" || input == "go u" || input == "walk up" ||
 		input == "move up" || input == "head up" || input == "up" || input == "u")
 		return "up";
+	if (input == "go down" || input == "go d" || input == "walk down" ||
+		input == "move down" || input == "head down" || input == "down" || input == "d")
+		return "down";
 	return "";
 }
 
@@ -93,6 +96,14 @@ bool CoinFlip(int coins, std::string win, std::string lose, std::string action, 
 	}
 	std::cout << "\n\n\n";
 	return success;
+}
+
+bool RequireInInventory(Player* p, Item* item) {
+	for (Item* i : p->inventory) {
+		if (i == item) return false;
+	}
+	std::cout << "You need to pick it up first.\n";
+	return true;
 }
 
 void CheckLevelUp(Player& player) {
@@ -159,6 +170,22 @@ bool HandleMove(Player* player, const std::string& input, Creature* Boar) {
 	if (direction.empty()) return false;
 	Exit* ex = player->currentRoom->GetExit(direction);
 	if (ex) {
+		if (ex->isLocked) {
+			Item* key = nullptr;
+			for (Item* item : player->inventory) {
+				if (item->name == ex->requiredKey) { key = item; break; }
+			}
+			if (!key) {
+				std::cout << "You need a " << ex->requiredKey << " to go that way.\n";
+				return false;
+			}
+			std::cout << "Use the " << key->name << "? (y/n)\n> ";
+			std::string choice;
+			std::getline(std::cin, choice);
+			if (choice != "y" && choice != "yes") return false;
+			ex->isLocked = false;
+			player->inventory.remove(key);
+		}
 		if (Boar->IsAlive() && !Boar->peacefulResolved && !Boar->patrolRooms.empty()) {
 			Boar->patrolIndex = (Boar->patrolIndex + 1) % Boar->patrolRooms.size();
 			Room* newLoc = Boar->patrolRooms[Boar->patrolIndex];
@@ -286,6 +313,7 @@ void HandleUse(Player* player, const std::string& target) {
 	else {
 		std::cout << "You don't see that.\n";
 	}
+	PressEnter();
 }
 
 void HandleTalk(Player* player, const std::string& target, World& world) {
@@ -339,7 +367,7 @@ void Combat(Player& player, Creature& enemy, World& world) {
 					std::cout << "You missed!\n";
 				}
 			}
-			else if (action == "flee" || action =="f") {
+			else if (action == "flee" || action == "f") {
 				if (CoinFlip(player.Flee, "escaping", "Stumbling", "running away", world)) {
 					std::cout << "You flee";
 					if (player.previousRoom != nullptr) {
@@ -635,10 +663,14 @@ int main() {
 		"Someone has been living here. A bedroll sits in the corner, a half eaten meal beside it.\n"
 		"At the center of the room, a stone pedestal holds a single golden cup, glowing faintly in the dark.");
 
-	Room* ambush = new Room("Ambush",
-		"The tunnel widens without warning.\n"
-		"A thunderous rumble echoes from ahead, growing louder by the second.\n"
-		"Before you can react, a group of boars burst from the darkness, charging straight at you.");
+	Room* PitRoom = new Room("Pit Room",
+		"A wide chamber with a deep pit at its center.\n"
+		"Strange herbs grow in clusters along the walls.\n"
+		"You can't tell how deep the pit is just by looking.");
+
+	Room* PitBottom = new Room("Pit Bottom",
+		"You reach the bottom of the pit. It's cold and damp.\n"
+		"On a flat stone sits a single silver gauntlet, untouched by time.");
 
 	Room* NarrowTunnel = new Room("Narrow Tunnel",
 		"The passage narrows until your shoulders nearly brush the walls on both sides.\n"
@@ -670,7 +702,8 @@ int main() {
 	world.AddEntity(ExcaliburRoom);
 	world.AddEntity(Dream);
 	world.AddEntity(Quarters);
-	world.AddEntity(ambush);
+	world.AddEntity(PitBottom);
+	world.AddEntity(PitRoom);
 	world.AddEntity(NarrowTunnel);
 	world.AddEntity(Waterfall);
 	world.AddEntity(Catacombs);
@@ -681,11 +714,6 @@ int main() {
 		"A cluster of yellow herbs. Often used by hunters for traps.",
 		"Herbs used to sedate beasts during hunts. Strong enough to knock a person out for hours.",
 		false, false, 1, "eat the herbs");
-
-	poisonHerbs->onInteract = [](Player* p) {
-		std::cout << "You eat the herbs. They taste bitter.\nYou pass out for several hours.\n";
-		p->turnsPlayed += 15;
-		};
 
 	NPC* mordred = new NPC("Mordred",
 		"A figure in dark armor stands at the cave mouth, blocking your path.",
@@ -706,7 +734,7 @@ int main() {
 	world.AddEntity(leverStatue);
 
 	Item* Rope = new Item("Rope",
-		"A cluster of ropes, always useful.", "", false, true, 2);
+		"A cluster of ropes, always useful.", "there is nowhere to use this rope right now.", false, true, 2);
 
 	AltarEntrance->AddEntity(Rope);
 	world.AddEntity(Rope);
@@ -751,6 +779,20 @@ int main() {
 
 	AltarEntrance->AddEntity(greenKnight);
 	world.AddEntity(greenKnight);
+
+	// Pit Bottom contents
+	Item* pristineGauntlet = new Item("silver Gauntlet",
+		"A silver gauntlet sits on the stone.",
+		"Looks like it was placed here yesterday. The metal is untouched.",
+		false, false, 3);
+	PitBottom->AddEntity(pristineGauntlet);
+	world.AddEntity(pristineGauntlet);
+
+	// Pit Room contents
+	Item* medHerbs = new Item("green Herbs",
+		"A cluster of green herbs.", "often used by alchemists to treat wounds", false, false, 1, "eat the herbs");
+	PitRoom->AddEntity(medHerbs);
+	world.AddEntity(medHerbs);
 
 	// NARROW TUNNEL CONTENT
 	Item* skeleton = new Item("Skeleton",
@@ -937,7 +979,7 @@ int main() {
 			std::cout << "You fail to apply the herbs! The boar snorts angrily.\n";
 		}
 		};
-	Item* boarMeat = new Item("Boar Meat", "Tough but edible meat.", "", false, false, 0);
+	Item* boarMeat = new Item("Boar Meat", "Tough but edible meat.", "eat the boar meat", false, false, 0);
 	Item* tusks = new Item("Tusks", "Sharp boar tusks.", "", false, false, 1);
 	world.AddEntity(boarMeat);
 	world.AddEntity(tusks);
@@ -1313,7 +1355,7 @@ int main() {
 	world.AddEntity(crystalBall);
 
 	// RANDOM ROOM SELECTION
-	std::vector<Room*> raPool = { ambush, NarrowTunnel, Waterfall };
+	std::vector<Room*> raPool = { PitRoom, NarrowTunnel, Waterfall };
 	std::vector<Room*> rbPool = { Catacombs, RitualRoom };
 
 	std::shuffle(raPool.begin(), raPool.end(), world.rng);
@@ -1398,7 +1440,35 @@ int main() {
 
 	//INVENTORY ITEMS
 
+	medHerbs->onInteract = [medHerbs](Player* p) {
+		if (RequireInInventory(p, medHerbs)) return;
+		p->hp += 50;
+		if (p->hp > p->maxHp) p->hp = p->maxHp;
+		p->inventory.remove(medHerbs);
+		std::cout << "You eat the medicinal herbs. (+50 HP)\n";
+		};
+
+	poisonHerbs->onInteract = [poisonHerbs](Player* p) {
+		if (RequireInInventory(p, poisonHerbs)) return;
+		if (p->inCombat) {
+			std::cout << "are you sure you want to eat the yellow herbs in the middle of combat? (y/n)\n> ";
+			std::string confirm;
+			std::getline(std::cin, confirm);
+			if (confirm != "y" && confirm != "yes")
+			{
+				std::cout << "You lose your grip on reality mid battle.\nThe enemy takes advantage.\n\n\nWhy would you eat the poison?";
+				p->inventory.remove(poisonHerbs);
+				p->TakeDamage(999);
+			}
+			return;
+		}
+		p->inventory.remove(poisonHerbs);
+		std::cout << "You eat the herbs. They taste bitter.\nYou pass out for several hours.\n";
+		p->turnsPlayed += 15;
+		};
+
 	incense->onInteract = [incense](Player* p) {
+		if (RequireInInventory(p, incense)) return;
 		std::cout << "You burn the incense. you feel your sins lifting off your shoulders.\n";
 		p->Worthy += 2;
 		p->inventory.remove(incense);
@@ -1406,14 +1476,46 @@ int main() {
 		};
 
 	ritualisticMask->onInteract = [ritualisticMask](Player* p) {
+		if (RequireInInventory(p, ritualisticMask)) return;
 		EquipItem(p, ritualisticMask);
 		};
 
 	pristineDagger->onInteract = [pristineDagger](Player* p) {
+		if (RequireInInventory(p, pristineDagger)) return;
 		EquipItem(p, pristineDagger);
 		};
 
+	boarMeat->onInteract = [boarMeat](Player* p) {
+		if (RequireInInventory(p, boarMeat)) return;
+		p->inventory.remove(boarMeat);
+		p->hp += 20;
+		if (p->hp > p->maxHp) p->hp = p->maxHp;
+		p->inventory.remove(boarMeat);
+		std::cout << "You eat the boar meat. (+20 HP)\n";
+		};
+
+	Rope->onInteract = [PitRoom, Rope](Player* p) {
+		if (RequireInInventory(p, Rope)) return;
+		if (p->currentRoom != PitRoom) {
+			std::cout << "You uncoil the rope. Nothing to use it on here.\n";
+			return;
+		}
+		Exit* down = PitRoom->GetExit("down");
+		if (down && down->isLocked) {
+			down->isLocked = false;
+			std::cout << "You secure the rope at the pit's edge. The path down is open.\n";
+			p->inventory.remove(Rope);
+		}
+		else {
+			std::cout << "The pit is already accessible.\n";
+		}
+		};
+
 	// EXITS
+
+	// PitBottom <-> Pit Room
+	PitRoom->AddExit(new Exit(Direction::DOWN, PitBottom, true, "Rope"));
+	PitBottom->AddExit(new Exit(Direction::UP, PitRoom, false));
 
 	// Entrance <-> RA1
 	entrance->AddExit(new Exit(Direction::NORTH, RA1, false));
@@ -1493,7 +1595,7 @@ int main() {
 				CheckEndingPathA(player);
 				break;
 			}
-			if (HandleMove(player, input,Boar)) {
+			if (HandleMove(player, input, Boar)) {
 				for (Entity* e : player->currentRoom->contains) {
 					if (e->type == EntityType::CREATURE) {
 						Creature* enemy = static_cast<Creature*>(e);
