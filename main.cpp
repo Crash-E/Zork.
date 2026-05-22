@@ -12,6 +12,7 @@
 #include "NPC.h"
 #include "Player.h"
 
+Creature* currentEnemy = nullptr;
 
 // HELPER FUNCTIONS
 std::string ParseMovement(const std::string& input) {
@@ -342,6 +343,7 @@ void HandleTalk(Player* player, const std::string& target, World& world) {
 }
 
 void Combat(Player& player, Creature& enemy, World& world) {
+	currentEnemy = &enemy;
 	enemy.combatEnded = false;
 	enemy.peacefulResolved = false;
 	bool extraTurn = player.sneakMode;
@@ -410,7 +412,7 @@ void Combat(Player& player, Creature& enemy, World& world) {
 			}
 			world.Update();
 			if (extraTurn) {
-
+				std::cout << "Do a different action!\n";
 				extraTurn = false;
 			}
 			else if (enemy.hp > 0 && enemy.damage != 0) {
@@ -427,7 +429,7 @@ void Combat(Player& player, Creature& enemy, World& world) {
 			}
 		}
 	}
-
+	currentEnemy = nullptr;
 	if (!player.IsAlive()) return;
 
 	if (!enemy.peacefulResolved) {
@@ -481,6 +483,7 @@ void EquipItem(Player* p, Item* newItem) {
 		p->Evade -= old->buffEvade;
 		p->Flee -= old->buffFlee;
 		p->ItemStat -= old->buffItem;
+		p->maxHp -= old->buffHealth;
 		std::cout << "You unequip the " << old->name << ".\n";
 	}
 	p->equipped = newItem;
@@ -489,6 +492,7 @@ void EquipItem(Player* p, Item* newItem) {
 	p->Evade += newItem->buffEvade;
 	p->Flee += newItem->buffFlee;
 	p->ItemStat += newItem->buffItem;
+	p->maxHp += newItem->buffHealth;
 	std::cout << "You equip the " << newItem->name << ".\n";
 }
 
@@ -602,7 +606,7 @@ void GameOver(Player* player) {
 
 // MAIN
 int main() {
-
+	bool ringFound = false;
 	std::string runeSequence = "";
 	bool forcefieldDown = false;
 	int rich = 15;
@@ -995,45 +999,145 @@ int main() {
 	injuredMan->damage = 0;
 	injuredMan->worthCost = 2;
 
-	injuredMan->onTalk = [](Player* p, World* w) {
-		std::cout << "He seems to be fading in and out of consciousness.\n";
-		std::cout << "[wake] [give] [steal] [leave]\n> ";
+	Item* food = new Item("Food",
+		"Dried meat and bread.", "", false, false, 1, "eat the food");
+	world.AddEntity(food);
+
+	Item* bomb = new Item("Bomb",
+		"A crude bomb wrapped in cloth.", "", false, false, 2, "throw the bomb");
+	world.AddEntity(bomb);
+
+	Item* rustyShield = new Item("Rusty Shield",
+		"An old shield, dented and rusted.", "", false, false, 2, "raise the shield");
+	world.AddEntity(rustyShield);
+
+	Item* leatherArmor = new Item("Leather Armor",
+		"Worn leather armor.", "", false, false, 2, "wear the armor");
+	world.AddEntity(leatherArmor);
+
+	injuredMan->drops.push_back(food);
+	injuredMan->drops.push_back(rustyShield);
+	injuredMan->drops.push_back(bomb);
+	injuredMan->drops.push_back(leatherArmor);
+
+	Item* arthursRing = new Item("Arthur's Ring",
+		"A ring bearing Arthur's seal.", "", false, false, 3, "wear the ring");
+	world.AddEntity(arthursRing);
+
+	Item* medHerbsWf = new Item("green Herbs",
+		"A cluster of green herbs.", "", false, false, 1, "eat the herbs");
+
+	Waterfall->AddEntity(medHerbsWf);
+	world.AddEntity(medHerbsWf);
+
+	Item* waterfallItem = new Item("Waterfall",
+		"Water cascades down the far wall into a shallow pool.",
+		"Something glints behind the rushing water.",
+		false, false, 0, "", true);
+	waterfallItem->onExamine = [waterfallItem, arthursRing, &ringFound](Player* p) {
+		std::cout << "You look at the waterfall. The water rushes too fast to see anything clearly.\n";
+		if (ringFound) return;
+		std::cout << "Look closer at the waterfall? (y/n)\n> ";
+		std::string c;
+		std::getline(std::cin, c);
+		if (c == "y" || c == "yes") {
+			std::cout << "You reach behind the water. Your fingers close around something cold and small. A ring.\n";
+			p->currentRoom->AddEntity(arthursRing);
+			ringFound = true;
+		}
+		};
+	Waterfall->AddEntity(waterfallItem);
+	world.AddEntity(waterfallItem);
+
+	Item* bloodiedBody = new Item("Bloodied Body",
+		"A man's body lies still, soaked in blood.",
+		"Everything on him is ruined. There is nothing of use here.",
+		false, false, 0, "", true);
+	world.AddEntity(bloodiedBody);
+
+	injuredMan->onTalk = [injuredMan, food, bomb, rustyShield, leatherArmor, bloodiedBody, Waterfall](Player* p, World* w) {
+		if (p->turnsPlayed > 40 && injuredMan->state == 0) {
+			Waterfall->RemoveEntity(injuredMan);
+			Waterfall->AddEntity(bloodiedBody);
+			std::cout << "The man is dead. He must have been gone for a while now.\n";
+			return;
+		}
+		if (injuredMan->state >= 2) {
+			std::cout << "Thank you for saving me. I will rest here for a while before going back home.\n";
+			PressEnter();
+			return;
+		}
+		std::cout << "The man is fading in and out of consciousness.\n";
+		std::cout << "[wake] [give] [steal] [kill]\n> ";
 		std::string choice;
 		std::getline(std::cin, choice);
 
 		if (choice == "wake") {
-			std::cout << "\nThe man stirs as you wake him.\n";
-			std::cout << "\"Please... do you have anything to help?\"\n";
+			injuredMan->state = 1;
+			std::cout << "The man stirs as you wake him.\n\"Please... do you have anything to help?\"\n";
 		}
 		else if (choice == "give") {
-			std::cout << "You offer something to help. What do you give?\n> ";
+			std::cout << "Give what?\n> ";
 			std::string itemName;
 			std::getline(std::cin, itemName);
 			Entity* item = FindInInventory(p, itemName);
-			if (item && item->type == EntityType::ITEM) {
-				Item* given = static_cast<Item*>(item);
-				if (given->Value >= 1) {
-					p->inventory.remove(given);
-					p->TotalValue -= given->Value;
-					std::cout << "You give him the " << given->name << ". His eyes light up with gratitude.\n";
-					std::cout << "\"Thank you... take this.\"\n";
-				}
-				else {
-					std::cout << "He looks at it and shakes his head weakly.\n";
-				}
+			if (!item) {
+				std::cout << "You don't have that.\n";
+				return;
+			}
+			Item* given = static_cast<Item*>(item);
+
+			if (given->name == "Yellow Herbs") {
+				std::cout << "He takes the herbs gratefully and drifts into a peaceful sleep.\n";
+				std::cout << "He does not wake again.\n";
+				p->inventory.remove(given);
+				p->TotalValue -= given->Value;
+				injuredMan->state = -1;
+				Waterfall->RemoveEntity(injuredMan);
+				Waterfall->AddEntity(bloodiedBody);
+			}
+			else if (given->name == "green Herbs") {
+				p->inventory.remove(given);
+				p->TotalValue -= given->Value;
+				p->inventory.push_back(bomb);
+				p->TotalValue += bomb->Value;
+				auto it = std::find(injuredMan->drops.begin(), injuredMan->drops.end(), bomb);
+				if (it != injuredMan->drops.end()) injuredMan->drops.erase(it);
+				injuredMan->state = 2;
+				injuredMan->hp = 50;
+				std::cout << "He eats the herbs and his color returns.\n\"Thank you! Take this. I won't need it now.\"\nHe hands you a bomb.\n";
+			}
+			else if (given->name == "Potion") {
+				p->inventory.remove(given);
+				p->TotalValue -= given->Value;
+				p->inventory.push_back(rustyShield);
+				p->TotalValue += rustyShield->Value;
+				auto it = std::find(injuredMan->drops.begin(), injuredMan->drops.end(), rustyShield);
+				if (it != injuredMan->drops.end()) injuredMan->drops.erase(it);
+				injuredMan->state = 3;
+				injuredMan->hp = 150;
+				std::cout << "He drinks the potion in one gulp and gets to his feet.\n\"I owe you my life. Take this. Hope it serves you better than me.\"\nHe hands you a rusty shield.\n";
 			}
 			else {
-				std::cout << "You don't have that.\n";
+				std::cout << "He looks at it and shakes his head weakly.\n";
 			}
 		}
 		else if (choice == "steal") {
-			std::cout << "You rifle through his belongings while he drifts in and out of consciousness.\n";
 			p->Worthy -= 1;
+			std::cout << "You rifle through his belongings. He doesn't stir.\n";
+			std::cout << "You manage to steal some food.\n";
+			p->inventory.push_back(food);
+			p->TotalValue += food->Value;
+			auto it = std::find(injuredMan->drops.begin(), injuredMan->drops.end(), food);
+			if (it != injuredMan->drops.end()) injuredMan->drops.erase(it);
 		}
-		else if (choice == "leave") {
-			std::cout << "You leave him be.\n";
+		else if (choice == "kill") {
+			injuredMan->isHostile = true;
+			std::cout << "You raise your weapon.\n";
 		}
+		PressEnter();
 		};
+
 
 	Waterfall->AddEntity(injuredMan);
 	world.AddEntity(injuredMan);
@@ -1440,11 +1544,74 @@ int main() {
 
 	//INVENTORY ITEMS
 
+	//consumables
+	potion->onInteract = [potion](Player* p) {
+		if (RequireInInventory(p, potion)) return;
+		p->hp = 150;
+		p->inventory.remove(potion);
+		p->TotalValue -= potion->Value;
+		std::cout << "You drink the potion. Warmth floods your body. (HP set to 150)\n";
+		};
+
+	food->onInteract = [food](Player* p) {
+		if (RequireInInventory(p, food)) return;
+		p->hp += 25;
+		if (p->hp > p->maxHp) p->hp = p->maxHp;
+		p->inventory.remove(food);
+		p->TotalValue -= food->Value;
+		std::cout << "You eat the food. (+25 HP)\n";
+		};
+
+	bomb->onInteract = [bomb](Player* p) {
+		if (RequireInInventory(p, bomb)) return;
+		if (currentEnemy == nullptr || !currentEnemy->IsAlive()) {
+			std::cout << "Nothing to throw it at.\n";
+			return;
+		}
+		currentEnemy->TakeDamage(60);
+		p->inventory.remove(bomb);
+		p->TotalValue -= bomb->Value;
+		std::cout << "You throw the bomb! It explodes against " << currentEnemy->name << "! (60 damage)\n";
+		};
+
+	boarMeat->onInteract = [boarMeat](Player* p) {
+		if (RequireInInventory(p, boarMeat)) return;
+		p->hp += 20;
+		if (p->hp > p->maxHp) p->hp = p->maxHp;
+		p->inventory.remove(boarMeat);
+		std::cout << "You eat the boar meat. (+20 HP)\n";
+		};
+
+	Rope->onInteract = [PitRoom, Rope](Player* p) {
+		if (RequireInInventory(p, Rope)) return;
+		if (p->currentRoom != PitRoom) {
+			std::cout << "You uncoil the rope. Nothing to use it on here.\n";
+			return;
+		}
+		Exit* down = PitRoom->GetExit("down");
+		if (down && down->isLocked) {
+			down->isLocked = false;
+			std::cout << "You secure the rope at the pit's edge. The path down is open.\n";
+			p->inventory.remove(Rope);
+		}
+		else {
+			std::cout << "The pit is already accessible.\n";
+		}
+		};
+
 	medHerbs->onInteract = [medHerbs](Player* p) {
 		if (RequireInInventory(p, medHerbs)) return;
 		p->hp += 50;
 		if (p->hp > p->maxHp) p->hp = p->maxHp;
 		p->inventory.remove(medHerbs);
+		std::cout << "You eat the medicinal herbs. (+50 HP)\n";
+		};
+
+	medHerbsWf->onInteract = [medHerbsWf](Player* p) {
+		if (RequireInInventory(p, medHerbsWf)) return;
+		p->hp += 50;
+		if (p->hp > p->maxHp) p->hp = p->maxHp;
+		p->inventory.remove(medHerbsWf);
 		std::cout << "You eat the medicinal herbs. (+50 HP)\n";
 		};
 
@@ -1475,6 +1642,7 @@ int main() {
 		std::cout << "(+2 Worthy)\n";
 		};
 
+	//equipment
 	ritualisticMask->onInteract = [ritualisticMask](Player* p) {
 		if (RequireInInventory(p, ritualisticMask)) return;
 		EquipItem(p, ritualisticMask);
@@ -1485,30 +1653,54 @@ int main() {
 		EquipItem(p, pristineDagger);
 		};
 
-	boarMeat->onInteract = [boarMeat](Player* p) {
-		if (RequireInInventory(p, boarMeat)) return;
-		p->inventory.remove(boarMeat);
-		p->hp += 20;
-		if (p->hp > p->maxHp) p->hp = p->maxHp;
-		p->inventory.remove(boarMeat);
-		std::cout << "You eat the boar meat. (+20 HP)\n";
+	ornamentalSword->buffFight = 1;
+	ornamentalSword->buffAct = 1;
+	ornamentalSword->interact = "wield the sword";
+	ornamentalSword->onInteract = [ornamentalSword](Player* p) {
+		if (RequireInInventory(p, ornamentalSword)) return;
+		EquipItem(p, ornamentalSword);
 		};
 
-	Rope->onInteract = [PitRoom, Rope](Player* p) {
-		if (RequireInInventory(p, Rope)) return;
-		if (p->currentRoom != PitRoom) {
-			std::cout << "You uncoil the rope. Nothing to use it on here.\n";
-			return;
+	ancientCloak->buffItem = 1;
+	ancientCloak->buffAct = 1;
+	ancientCloak->interact = "wear the cloak";
+	ancientCloak->onInteract = [ancientCloak](Player* p) {
+		if (RequireInInventory(p, ancientCloak)) return;
+		EquipItem(p, ancientCloak);
+		};
+
+	arthursRing->buffAct = 2;
+	arthursRing->interact = "wear the ring";
+	arthursRing->onInteract = [arthursRing](Player* p) {
+		if (RequireInInventory(p, arthursRing)) return;
+		EquipItem(p, arthursRing);
+		};
+
+	pristineGauntlet->buffItem = 2;
+	pristineGauntlet->interact = "wear the gauntlet";
+	pristineGauntlet->onInteract = [pristineGauntlet](Player* p) {
+		if (RequireInInventory(p, pristineGauntlet)) return;
+		EquipItem(p, pristineGauntlet);
+		};
+
+	rustyShield->buffEvade = 2;
+	rustyShield->interact = "raise the shield";
+	rustyShield->onInteract = [rustyShield](Player* p) {
+		if (RequireInInventory(p, rustyShield)) return;
+		EquipItem(p, rustyShield);
+		};
+
+	leatherArmor->buffHealth = 50;
+	leatherArmor->interact = "wear the armor";
+	leatherArmor->onInteract = [leatherArmor](Player* p) {
+		if (RequireInInventory(p, leatherArmor)) return;
+		static bool firstWear = true;
+		EquipItem(p, leatherArmor);
+		if (firstWear) {
+			p->hp += 50;
+			firstWear = false;
 		}
-		Exit* down = PitRoom->GetExit("down");
-		if (down && down->isLocked) {
-			down->isLocked = false;
-			std::cout << "You secure the rope at the pit's edge. The path down is open.\n";
-			p->inventory.remove(Rope);
-		}
-		else {
-			std::cout << "The pit is already accessible.\n";
-		}
+		std::cout << "You wear the leather armor. (+50 Max HP)\n";
 		};
 
 	// EXITS

@@ -22,6 +22,7 @@ public:
     int buffEvade = 0;
     int buffFlee = 0;
     int buffItem = 0;
+    int buffHealth = 0;
 
     Item(const std::string& n, const std::string& desc, const std::string& ex = "",
         bool container = false, bool key = false, int val = 0, const std::string& inter = "", bool fix = false)
