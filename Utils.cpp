@@ -75,6 +75,11 @@ Entity* FindInInventory(Player* player, const std::string& target) {
 
 bool CoinFlip(int coins, const std::string& win, const std::string& lose, const std::string& action, World& world) {
 	bool success = false;
+	if (coins <= 0) {
+		std::cout << "You cannot do That!\n";
+		return false;
+	}
+	else if (coins >= 4) coins = 4;
 	std::uniform_int_distribution<int> dist(0, 1);
 	std::cout << "\n" << action << " " << coins << " times";
 	for (int i = 0; i < coins; ++i) {

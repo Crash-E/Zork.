@@ -139,23 +139,33 @@
     </Manifest>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="Combat.h" />
+    <ClInclude Include="Commands.h" />
     <ClInclude Include="Creature.h" />
+    <ClInclude Include="Endings.h" />
     <ClInclude Include="Entity.h" />
     <ClInclude Include="Exit.h" />
     <ClInclude Include="Item.h" />
     <ClInclude Include="NPC.h" />
     <ClInclude Include="Player.h" />
     <ClInclude Include="Room.h" />
+    <ClInclude Include="Utils.h" />
     <ClInclude Include="World.h" />
+    <ClInclude Include="WorldBuilder.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="Combat.cpp" />
+    <ClCompile Include="Commands.cpp" />
     <ClCompile Include="Creature.cpp" />
+    <ClCompile Include="Endings.cpp" />
     <ClCompile Include="Entity.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="NPC.cpp" />
     <ClCompile Include="Player.cpp" />
     <ClCompile Include="Room.cpp" />
+    <ClCompile Include="Utils.cpp" />
     <ClCompile Include="World.cpp" />
+    <ClCompile Include="WorldBuilder.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -26,7 +26,7 @@ public:
     int   turnsPlayed;
     std::list<Item*> inventory;
     int   TotalValue;
-	bool inCombat = false;
+	bool  inCombat = false;
 
     Player(const std::string& n, Room* startRoom)
         : Entity(EntityType::PLAYER, n, "The player"),

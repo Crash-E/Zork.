@@ -36,6 +36,25 @@ void CheckLevelUp(Player& player) {
 
 void Combat(Player& player, Creature& enemy, World& world) {
 	currentEnemy = &enemy;
+
+	bool hasExcalibur = false;
+	for (Item* item : player.inventory) {
+		if (item->name == "Excalibur") { hasExcalibur = true; break; }
+	}
+	if (hasExcalibur && enemy.name != "Mordred") {
+		std::cout << "\nYour enemy cowers at the might of Excalibur. The fight ends before it even begins.\n";
+		enemy.isHostile = false;
+		enemy.peacefulResolved = true;
+		enemy.combatEnded = true;
+		currentEnemy = nullptr;
+		PressEnter();
+		return;
+	}
+	else if (enemy.name == "Mordred") {
+		HandleTalk(&player, "Mordred", world);
+	}
+
+	player.inCombat = true;
 	enemy.combatEnded = false;
 	enemy.peacefulResolved = false;
 	bool extraTurn = player.sneakMode;
@@ -123,6 +142,7 @@ void Combat(Player& player, Creature& enemy, World& world) {
 		}
 	}
 	currentEnemy = nullptr;
+	player.inCombat = false;
 	if (!player.IsAlive()) return;
 
 	if (!enemy.peacefulResolved) {
