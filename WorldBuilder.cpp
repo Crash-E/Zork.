@@ -110,7 +110,7 @@ void WorldBuilder::Build(World& world) {
 		std::cout << "\"You think you can just walk out of here?\"\n";
 		std::cout << "Mordred's voice is cold and filled with rage.\n";
 		std::cout << "!!!===YOU CAN'T ESCAPE===!!!\n";
-		p->flee = -5;
+		p->Flee = -5;
 		PressEnter();
 		bool hasExcalibur = false;
 		for (Item* item : p->inventory) {
